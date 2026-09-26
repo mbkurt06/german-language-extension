@@ -51,21 +51,40 @@
       node.appendChild(line);
     }catch(_e){ /* Hover remains available even when translation fails. */ }
   }
-  function decorate(node,text){
-    if(node.dataset.gleText===text) return;
-    node.dataset.gleText=text; node.textContent="";
-    tokenize(text).forEach((part,i)=>{
-      const span=document.createElement("span"); span.textContent=part; span.className=/^[\p{L}\p{M}]/u.test(part)?"gle-word":"gle-punct"; span.dataset.gleIndex=i;
-      if(span.className==="gle-word") span.addEventListener("mouseenter",async()=>{
-        try{ renderCard(await analyze(text),i,span); }catch(e){ state.tooltip.innerHTML=`<div><b>Engine bağlantısı yok</b><br><small>${esc(e.message)}</small></div>`; state.tooltip.hidden=false; }
-      });
-      node.appendChild(span); if(i<tokenize(text).length-1) node.append(" ");
+  function renderAnalyzedTokens(node,text,data){
+    if(node.dataset.gleText!==text) return;
+    node.textContent="";
+    const tokens=data.tokens||[];
+    tokens.forEach((token,i)=>{
+      const span=document.createElement("span");
+      span.textContent=token.text;
+      span.className=token.pos==="PUNCT"?"gle-punct":"gle-word";
+      span.dataset.gleIndex=token.i;
+      if(span.className==="gle-word") span.addEventListener("mouseenter",()=>renderCard(data,token.i,span));
+      node.appendChild(span);
+      if(i<tokens.length-1 && token.pos!=="PUNCT") node.append(" ");
     });
-    renderSentenceTranslation(node,text);
+  }
+  async function decorate(node,text){
+    if(node.dataset.gleText===text) return;
+    node.dataset.gleText=text;
+    try{
+      const data=await analyze(text);
+      if(node.dataset.gleText!==text) return;
+      renderAnalyzedTokens(node,text,data);
+      await renderSentenceTranslation(node,text);
+    }catch(_e){
+      if(node.dataset.gleText!==text) return;
+      node.textContent="";
+      tokenize(text).forEach((part,i)=>{
+        const span=document.createElement("span"); span.textContent=part; span.className=/^[\p{L}\p{M}]/u.test(part)?"gle-word":"gle-punct";
+        node.appendChild(span); if(i<tokenize(text).length-1) node.append(" ");
+      });
+    }
   }
   function scan(){
     for(const selector of adapter.selectors) document.querySelectorAll(selector).forEach(node=>{
-      const text=(node.innerText||node.textContent||"").trim(); if(text && text.length<500 && !node.querySelector(".gle-word")) decorate(node,text);
+      const text=node.dataset.gleText || (node.innerText||node.textContent||"").trim(); if(text && text.length<500 && !node.querySelector(".gle-word")) decorate(node,text);
     });
   }
   state.tooltip=createTooltip();
