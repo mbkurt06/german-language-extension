@@ -117,7 +117,6 @@
       const line=document.createElement("span");
       line.className="gle-subtitle-translation";
       line.textContent=translation;
-      line.style.fontSize=state.settings.translationFontSize+"%";
       node.appendChild(line);
     }catch(_error){}
   }
@@ -182,7 +181,8 @@
     const overlay=state.youtube.overlay;
     const germanLine=state.youtube.germanLine;
     if(!overlay || !germanLine) return;
-    germanLine.style.setProperty("--gle-german-font-scale",(state.settings.germanFontSize/100).toFixed(2));
+    overlay.style.setProperty("--gle-german-font-scale",(state.settings.germanFontSize/100).toFixed(2));
+    overlay.style.setProperty("--gle-translation-font-scale",(state.settings.translationFontSize/100).toFixed(2));
     overlay.style.top=clamp(Number(state.settings.youtubeSubtitlePositionY)||82,8,92)+"%";
   }
 
