@@ -42,3 +42,30 @@ test("empty and malformed caption events are ignored", () => {
   assert.deepEqual(parseJson3Cues({ events: [] }), []);
   assert.deepEqual(parseJson3Cues({ events: [{ tStartMs: 10, segs: [{ utf8: "  " }] }] }), []);
 });
+
+
+test("rolling ASR windows replace prefixes instead of duplicating words", () => {
+  const cues = parseJson3Cues({
+    events: [
+      { tStartMs: 0, dDurationMs: 900, wWinId: 1, segs: [{ utf8: "Was" }] },
+      { tStartMs: 500, dDurationMs: 900, wWinId: 1, segs: [{ utf8: "Was bedeutet" }] },
+      { tStartMs: 1000, dDurationMs: 1000, wWinId: 1, segs: [{ utf8: "Was bedeutet dieses Wort?" }] },
+    ],
+  });
+
+  assert.equal(cues.length, 1);
+  assert.equal(cues[0].text, "Was bedeutet dieses Wort?");
+  assert.equal(cues[0].text.includes("Was Was"), false);
+});
+
+test("aAppend events merge by overlap without repeating the shared words", () => {
+  const cues = parseJson3Cues({
+    events: [
+      { tStartMs: 0, dDurationMs: 1000, segs: [{ utf8: "Wir lernen" }] },
+      { tStartMs: 800, dDurationMs: 1200, aAppend: 1, segs: [{ utf8: "lernen Deutsch." }] },
+    ],
+  });
+
+  assert.equal(cues.length, 1);
+  assert.equal(cues[0].text, "Wir lernen Deutsch.");
+});
