@@ -9,7 +9,7 @@
     cache:new Map(),
     analysisInflight:new Map(),
     tooltip:null,
-    settings:{showSentenceTranslation:true,germanFontSize:100,translationFontSize:85,youtubeSubtitlePositionY:82},
+    settings:{showSentenceTranslation:true,germanFontSize:100,translationFontSize:100,youtubeSubtitlePositionY:82},
     youtube:{
       overlay:null,
       germanLine:null,
@@ -57,7 +57,8 @@
     const lexical=h.lexical_form;
     const notes=h.usage_notes||[];
     const more=(h.dictionary_meanings_tr||[]).join(", ");
-    const sentence=data.sentence_meaning_tr ? `<div class="gle-sentence">🇹🇷 ${esc(data.sentence_meaning_tr)}</div>` : "";
+    const cleanSentence=cleanTranslationText(data.sentence_meaning_tr);
+    const sentence=cleanSentence ? `<div class="gle-sentence">🇹🇷 ${esc(cleanSentence)}</div>` : "";
     const sourceToken=(data.tokens||[]).find(token=>token.i===tokenIndex);
     const source=sourceToken?.text && !lexical?.article ? `<div class="gle-source"><b>Almanca:</b> ${esc(sourceToken.lemma||sourceToken.text)}</div>` : "";
     const expression=expr ? `<div class="gle-expression"><b>${esc(expr.canonical)}</b><div>→ ${esc((expr.meaning_tr||[])[0]||"")}</div>${expr.grammar_hint?`<small>${esc(expr.grammar_hint)}</small>`:""}</div>` : "";
@@ -496,7 +497,7 @@
   chrome.storage.sync.get({
     showSentenceTranslation:true,
     germanFontSize:100,
-    translationFontSize:85,
+    translationFontSize:100,
     youtubeSubtitlePositionY:82
   },settings=>{
     state.settings=settings;

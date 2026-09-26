@@ -6,7 +6,7 @@ const translationSize=document.querySelector("#translationSize");
 const sizeValue=document.querySelector("#sizeValue");
 const status=document.querySelector("#status");
 
-const defaults={engineUrl:"http://127.0.0.1:8765",showSentenceTranslation:true,germanFontSize:100,translationFontSize:85};
+const defaults={engineUrl:"http://127.0.0.1:8765",showSentenceTranslation:true,germanFontSize:100,translationFontSize:100};
 chrome.storage.sync.get(defaults,x=>{
   url.value=x.engineUrl;
   showTranslation.checked=x.showSentenceTranslation;
