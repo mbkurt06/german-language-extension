@@ -16,6 +16,16 @@
   "content_scripts": [
     {
       "matches": [
+        "https://www.youtube.com/*"
+      ],
+      "js": [
+        "src/youtube-bridge.js"
+      ],
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": [
         "https://*.zdf.de/*",
         "https://*.ardmediathek.de/*",
         "https://www.youtube.com/*"
@@ -34,11 +44,5 @@
     "default_popup": "src/popup.html",
     "default_title": "German Language Context"
   },
-  "options_page": "src/options.html",
-  "web_accessible_resources": [
-    {
-      "resources": ["src/youtube-bridge.js"],
-      "matches": ["https://www.youtube.com/*"]
-    }
-  ]
+  "options_page": "src/options.html"
 }

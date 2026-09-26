@@ -289,12 +289,9 @@
     }
   }
 
-  function installYouTubeBridge(){
+  function connectYouTubeBridge(){
     window.addEventListener("message",receiveYouTubeBridge);
-    const script=document.createElement("script");
-    script.src=chrome.runtime.getURL("src/youtube-bridge.js");
-    script.onload=()=>script.remove();
-    (document.head || document.documentElement).appendChild(script);
+    window.postMessage({source:"gle-youtube-content",type:"refresh"},location.origin);
   }
 
   function collectYouTubeDomText(){
@@ -419,7 +416,7 @@
     }
   });
 
-  if(adapter.id==="youtube") installYouTubeBridge();
+  if(adapter.id==="youtube") connectYouTubeBridge();
 
   let scanScheduled=false;
   new MutationObserver(()=>{
