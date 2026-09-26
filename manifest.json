@@ -21,7 +21,6 @@
         "https://www.youtube.com/*"
       ],
       "js": [
-        "src/youtube-cues.js",
         "src/content.js"
       ],
       "css": [
@@ -34,11 +33,5 @@
     "default_popup": "src/popup.html",
     "default_title": "German Language Context"
   },
-  "options_page": "src/options.html",
-  "web_accessible_resources": [
-    {
-      "resources": ["src/youtube-bridge.js"],
-      "matches": ["https://www.youtube.com/*"]
-    }
-  ]
+  "options_page": "src/options.html"
 }
