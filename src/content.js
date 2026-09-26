@@ -4,7 +4,7 @@
     {id:"zdf", host:/(^|\.)zdf\.de$/, selectors:["[class*='subtitle']","[class*='caption']","[aria-live='polite']"]},
     {id:"ard", host:/(^|\.)ardmediathek\.de$/, selectors:["[class*='subtitle']","[class*='caption']","[aria-live='polite']"]}
   ];
-  const state={lastText:"", cache:new Map(), tooltip:null, youtubeOverlay:null, youtubeGermanLine:null, youtubeVideoId:"", youtubeCaptionsEnabled:null, youtubeTrackKey:"", youtubeFetchKey:"", youtubeLastAttemptKey:"", youtubeFetchFailures:0, youtubeRetryTimer:null, youtubeFetchId:0, youtubeTimedCues:null, youtubeCueIndex:-1, youtubeVideo:null, youtubeVideoListeners:null, youtubeVideoFrameId:null, youtubeFallbackHideTimer:null, youtubeLastInputAt:0, youtubeActiveContainer:null, youtubeSegmentTexts:new WeakMap(), settings:{showSentenceTranslation:true,translationFontSize:85}};
+  const state={lastText:"", cache:new Map(), tooltip:null, youtubeOverlay:null, youtubeGermanLine:null, youtubeVideoId:"", youtubeCaptionsEnabled:null, youtubeTrackKey:"", youtubeFetchKey:"", youtubeLastAttemptKey:"", youtubeFetchFailures:0, youtubeRetryTimer:null, youtubeFetchId:0, youtubeTimedCues:null, youtubeCueIndex:-1, youtubeVideo:null, youtubeVideoListeners:null, youtubeVideoFrameId:null, youtubeFallbackHideTimer:null, youtubeLastInputAt:0, youtubeActiveContainer:null, youtubeSegmentTexts:new WeakMap(), youtubeLastDomText:"", settings:{showSentenceTranslation:true,translationFontSize:85}};
   const adapter=ADAPTERS.find(a=>a.host.test(location.hostname));
   if(!adapter) return;
 
@@ -245,59 +245,39 @@
   function scanYouTube(){
     const player=document.querySelector(".html5-video-player");
     if(!player) return;
-    if(state.youtubeCaptionsEnabled===false){
-      if(state.youtubeOverlay) state.youtubeOverlay.hidden=true;
-      return;
-    }
-    const groups=new Map();
-    document.querySelectorAll(".ytp-caption-segment").forEach(node=>{
-      const container=node.closest(".ytp-caption-window-bottom") || node.parentElement;
-      if(!container) return;
-      if(!groups.has(container)) groups.set(container,[]);
-      groups.get(container).push(node);
-    });
-    const entries=[...groups].map(([container,nodes])=>{
-      const changedParts=[];
-      nodes.forEach(node=>{
-        const part=(node.innerText||node.textContent||"").trim();
-        const previous=state.youtubeSegmentTexts.get(node);
-        if(previous!==part){
-          state.youtubeSegmentTexts.set(node,part);
-          if(part) changedParts.push(part);
-        }
-      });
-      const text=changedParts.join(" ").replace(/\s+([,.!?;:])/g,"$1").replace(/\s+/g," ").trim();
-      return {container,nodes,text};
-    });
-    const changedEntries=entries.filter(entry=>entry.text);
-    const activeEntry=entries.find(entry=>entry.container===state.youtubeActiveContainer);
-    const current=changedEntries[changedEntries.length-1];
-    entries.forEach(entry=>entry.container.style.setProperty("visibility","hidden","important"));
+
+    const containers=[...document.querySelectorAll(".ytp-caption-window-bottom")];
+    const entries=containers.map(container=>{
+      const parts=[...container.querySelectorAll(".ytp-caption-segment")]
+        .map(node=>(node.innerText||node.textContent||"").trim())
+        .filter(Boolean);
+      const text=parts.join(" ")
+        .replace(/\s+([,.!?;:])/g,"$1")
+        .replace(/\s+/g," ")
+        .trim();
+      return {container,text};
+    }).filter(entry=>entry.text);
+
     const {overlay,germanLine}=ensureYouTubeOverlay(player);
-    if(state.youtubeTimedCues){
-      bindYouTubeVideo();
-      renderTimedCue();
-      return;
-    }
+    const current=entries[entries.length-1];
+
     if(current?.text && current.text.length<500){
-      state.youtubeActiveContainer=current.container;
-      state.youtubeLastInputAt=Date.now();
       clearTimeout(state.youtubeFallbackHideTimer);
       state.youtubeFallbackHideTimer=null;
       overlay.hidden=false;
-      decorate(germanLine,current.text);
+      if(current.text!==state.youtubeLastDomText){
+        state.youtubeLastDomText=current.text;
+        decorate(germanLine,current.text);
+      }
       return;
     }
-    const activeStillPresent=activeEntry?.nodes.some(node=>(node.innerText||node.textContent||"").trim());
-    if(activeStillPresent && Date.now()-state.youtubeLastInputAt<5000) return;
+
     if(state.youtubeFallbackHideTimer===null){
       state.youtubeFallbackHideTimer=setTimeout(()=>{
         state.youtubeFallbackHideTimer=null;
-        if(state.youtubeTimedCues) return;
+        state.youtubeLastDomText="";
         overlay.hidden=true;
-        state.youtubeActiveContainer=null;
-        state.youtubeSegmentTexts=new WeakMap();
-      },350);
+      },250);
     }
   }
   function scan(){
@@ -316,7 +296,6 @@
     document.querySelectorAll("[data-gle-text]").forEach(node=>{ if(state.settings.showSentenceTranslation) renderSentenceTranslation(node,node.dataset.gleText); });
   });
   document.addEventListener("mousemove",e=>{ if(state.tooltip&&!state.tooltip.contains(e.target)&&!e.target.closest?.(".gle-word")) state.tooltip.hidden=true; });
-  if(adapter.id==="youtube") installYouTubeBridge();
   let scanScheduled=false;
   new MutationObserver(()=>{
     if(scanScheduled) return;
