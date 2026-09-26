@@ -1,10 +1,14 @@
 (() => {
   function normalizeCueText(text) {
-    return text.replace(/[\u200b\ufeff]/g, "").replace(/\s+/g, " ").trim();
+    return String(text || "").replace(/[\u200b\ufeff]/g, "").replace(/\s+/g, " ").trim();
   }
 
   function comparableWord(word) {
-    return word.toLocaleLowerCase("de-DE").replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, "");
+    return String(word || "").toLocaleLowerCase("de-DE").replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, "");
+  }
+
+  function words(text) {
+    return normalizeCueText(text).split(/\s+/).filter(Boolean);
   }
 
   function sameWordPrefix(shorter, longer) {
@@ -14,72 +18,101 @@
   }
 
   function sentenceIsComplete(text) {
-    return /[.!?…]["'»”’)}\u005d]*$/u.test(text.trim());
+    return /[.!?…]["'»”’)}\]]*$/u.test(normalizeCueText(text));
   }
 
-  function mergeCueText(first, second) {
+  function mergeRollingText(first, second) {
     const a = normalizeCueText(first);
     const b = normalizeCueText(second);
     if (!a) return b;
     if (!b) return a;
+    if (a === b) return a;
 
-    const aWords = a.split(/\s+/);
-    const bWords = b.split(/\s+/);
+    const aWords = words(a);
+    const bWords = words(b);
+
     if (sameWordPrefix(aWords, bWords)) return b;
     if (sameWordPrefix(bWords, aWords)) return a;
 
     let overlap = 0;
     for (let size = Math.min(aWords.length, bWords.length); size > 0; size--) {
-      if (sameWordPrefix(aWords.slice(-size), bWords.slice(0, size))) {
+      const left = aWords.slice(-size);
+      const right = bWords.slice(0, size);
+      if (left.every((word, index) => comparableWord(word) === comparableWord(right[index]))) {
         overlap = size;
         break;
       }
     }
 
-    const suffix = bWords.slice(overlap).join(" ");
-    return normalizeCueText(`${a}${suffix && /^[,.;:!?)]/u.test(suffix) ? "" : " "}${suffix}`);
+    if (overlap) {
+      return normalizeCueText(`${a} ${bWords.slice(overlap).join(" ")}`);
+    }
+
+    return normalizeCueText(`${a} ${b}`);
+  }
+
+  function eventText(event) {
+    const segments = Array.isArray(event?.segs) ? event.segs : [];
+    return normalizeCueText(segments.map(segment => segment.utf8 || "").join(""));
+  }
+
+  function eventEndMs(event, startMs) {
+    const segments = Array.isArray(event?.segs) ? event.segs : [];
+    const eventDuration = Number(event?.dDurationMs) || 0;
+    const segmentEnd = Math.max(0, ...segments.map(segment =>
+      Number(segment.tOffsetMs || 0) + Number(segment.dDurationMs || 0)
+    ));
+    const duration = Math.max(eventDuration, segmentEnd);
+    return startMs + (duration > 0 ? duration : 0);
   }
 
   function parseJson3Cues(payload) {
     if (!Array.isArray(payload?.events)) return [];
 
-    const events = payload.events.map(event => {
-      const segments = Array.isArray(event.segs) ? event.segs : [];
-      const text = normalizeCueText(segments.map(segment => segment.utf8 || "").join(""));
-      const startMs = Number(event.tStartMs);
+    const raw = payload.events.map(event => {
+      const text = eventText(event);
+      const startMs = Number(event?.tStartMs);
       if (!text || !Number.isFinite(startMs)) return null;
-
-      const eventDuration = Number(event.dDurationMs) || 0;
-      const segmentEnd = Math.max(0, ...segments.map(segment =>
-        Number(segment.tOffsetMs || 0) + Number(segment.dDurationMs || 0)
-      ));
-      return { startMs, endMs: startMs + Math.max(eventDuration, segmentEnd), text };
+      return {
+        startMs,
+        endMs: eventEndMs(event, startMs),
+        text,
+        append: Boolean(event?.aAppend),
+        windowId: event?.wWinId ?? null,
+      };
     }).filter(Boolean).sort((a, b) => a.startMs - b.startMs);
 
-    events.forEach((event, index) => {
+    raw.forEach((event, index) => {
       if (event.endMs <= event.startMs) {
-        const nextStart = events[index + 1]?.startMs;
+        const nextStart = raw[index + 1]?.startMs;
         event.endMs = nextStart > event.startMs ? nextStart : event.startMs + 1800;
       }
     });
 
     const cues = [];
-    for (const event of events) {
+    for (const event of raw) {
       const previous = cues[cues.length - 1];
-      const mergedText = previous ? mergeCueText(previous.text, event.text) : event.text;
+      const sameWindow = previous && event.windowId !== null && previous.windowId === event.windowId;
       const gap = previous ? event.startMs - previous.endMs : Infinity;
-      const canMerge = previous && gap <= 350 && gap >= -750 && !sentenceIsComplete(previous.text) &&
-        mergedText.split(/\s+/).length <= 12 && mergedText.length <= 100;
+      const mergedText = previous ? mergeRollingText(previous.text, event.text) : event.text;
+      const mergedWords = words(mergedText).length;
 
-      if (canMerge) {
+      const shouldMerge = previous && (
+        event.append ||
+        sameWindow ||
+        (gap <= 450 && gap >= -900 && !sentenceIsComplete(previous.text) && mergedWords <= 16 && mergedText.length <= 140)
+      );
+
+      if (shouldMerge) {
         previous.text = mergedText;
         previous.endMs = Math.max(previous.endMs, event.endMs);
+        if (event.windowId !== null) previous.windowId = event.windowId;
       } else {
-        cues.push({ startMs: event.startMs, endMs: event.endMs, text: event.text });
+        cues.push({...event});
       }
     }
 
-    return cues.map((cue, index) => ({ ...cue, index }));
+    return cues.map(({append, windowId, ...cue}, index) => ({...cue, index}));
   }
 
   function cueAtTime(cues, timeMs) {
@@ -100,7 +133,7 @@
     return candidate && timeMs < candidate.endMs ? candidate : null;
   }
 
-  const api = { parseJson3Cues, cueAtTime };
+  const api = { normalizeCueText, mergeRollingText, parseJson3Cues, cueAtTime, sentenceIsComplete };
   globalThis.GLEYoutubeCues = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();

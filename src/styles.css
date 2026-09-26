@@ -3,6 +3,6 @@
 .gle-youtube-overlay{position:absolute;z-index:2147483000;left:50%;bottom:9%;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:.22em;width:max-content;max-width:92%;text-align:center;pointer-events:none}.gle-youtube-overlay[hidden]{display:none}.gle-youtube-german{display:block;width:max-content;max-width:92vw;padding:.08em .34em;border-radius:.28em;background:rgba(20,20,20,.68);color:#fff;font:500 clamp(18px,2.1vw,40px)/1.22 system-ui,-apple-system,sans-serif;white-space:normal;text-align:center}.gle-youtube-german .gle-word,.gle-youtube-german .gle-punct{color:#fff}.gle-youtube-german .gle-subtitle-translation{display:block;width:max-content;max-width:92vw;margin:.22em auto 0;padding:.08em .34em;border-radius:.28em;background:rgba(20,20,20,.58);color:#fff;font:400 .82em/1.22 system-ui,-apple-system,sans-serif;white-space:normal;text-align:center;text-shadow:none}
 
 /* YouTube native captions stay as the timing/data source but are not rendered. */
-.ytp-caption-window-bottom{visibility:hidden!important}
+.html5-video-player.gle-custom-captions-active .ytp-caption-window-bottom{visibility:hidden!important}
 .gle-youtube-overlay,.gle-youtube-overlay *{visibility:visible!important}
 .gle-youtube-german{pointer-events:auto}
