@@ -1,1 +1,21 @@
-<!doctype html><meta charset="utf-8"><title>German Language Context</title><style>body{font:15px system-ui;max-width:650px;margin:40px auto;padding:0 20px}input{width:100%;padding:9px;box-sizing:border-box}button{margin-top:10px;padding:8px 14px}</style><h1>Engine bağlantısı</h1><p>Language Engine HTTP adresi</p><input id="url" value="http://127.0.0.1:8765"><button id="save">Kaydet</button><span id="status"></span><script src="options.js"></script>
+<!doctype html>
+<meta charset="utf-8">
+<title>German Language Context</title>
+<style>
+body{font:15px system-ui;max-width:650px;margin:40px auto;padding:0 20px}
+label{display:block;margin:18px 0 6px}
+input[type="url"]{width:100%;padding:9px;box-sizing:border-box}
+.row{display:flex;align-items:center;gap:10px}
+input[type="range"]{flex:1}
+button{margin-top:18px;padding:8px 14px}
+#sizeValue{min-width:44px}
+</style>
+<h1>German Language Context</h1>
+<label for="url">Language Engine HTTP adresi</label>
+<input id="url" type="url" value="http://127.0.0.1:8765">
+<label class="row"><input id="showTranslation" type="checkbox"> Türkçe cümle çevirisini altyazının altında göster</label>
+<label for="translationSize">Türkçe çeviri boyutu</label>
+<div class="row"><input id="translationSize" type="range" min="60" max="140" step="5" value="85"><output id="sizeValue">85%</output></div>
+<p><small>Kelime hover analizi bu ayardan bağımsızdır ve her zaman çalışır.</small></p>
+<button id="save">Kaydet</button> <span id="status"></span>
+<script src="options.js"></script>
