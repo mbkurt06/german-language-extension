@@ -7,6 +7,7 @@
 
   const state = {
     cache:new Map(),
+    analysisInflight:new Map(),
     tooltip:null,
     settings:{showSentenceTranslation:true,translationFontSize:85},
     youtube:{
@@ -74,16 +75,34 @@
 
   async function analyze(text){
     if(state.cache.has(text)) return state.cache.get(text);
-    const {engineUrl="http://127.0.0.1:8765"}=await chrome.storage.sync.get("engineUrl");
-    const response=await fetch(engineUrl.replace(/\/$/,"")+"/analyze",{
-      method:"POST",
-      headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({text})
-    });
-    if(!response.ok) throw new Error("Engine "+response.status);
-    const data=await response.json();
-    state.cache.set(text,data);
-    return data;
+    if(state.analysisInflight.has(text)) return state.analysisInflight.get(text);
+
+    const request=(async()=>{
+      const {engineUrl="http://127.0.0.1:8765"}=await chrome.storage.sync.get("engineUrl");
+      const response=await fetch(engineUrl.replace(/\/$/,"")+"/analyze",{
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({text})
+      });
+      if(!response.ok) throw new Error("Engine "+response.status);
+      const data=await response.json();
+      state.cache.set(text,data);
+      return data;
+    })();
+
+    state.analysisInflight.set(text,request);
+    try{
+      return await request;
+    }finally{
+      if(state.analysisInflight.get(text)===request) state.analysisInflight.delete(text);
+    }
+  }
+
+  function cleanTranslationText(text){
+    return String(text||"")
+      .replace(/\b([\p{L}\p{N}]+)(?:\s+\1){2,}\b/giu,"$1")
+      .replace(/\s+/g," ")
+      .trim();
   }
 
   async function renderSentenceTranslation(node,text){
@@ -92,12 +111,21 @@
     try{
       const data=await analyze(text);
       if(!data.sentence_meaning_tr || node.dataset.gleText!==text) return;
+      const translation=cleanTranslationText(data.sentence_meaning_tr);
+      if(!translation) return;
       const line=document.createElement("span");
       line.className="gle-subtitle-translation";
-      line.textContent=data.sentence_meaning_tr;
+      line.textContent=translation;
       line.style.fontSize=state.settings.translationFontSize+"%";
       node.appendChild(line);
     }catch(_error){}
+  }
+
+  function shouldInsertSpace(token,next){
+    if(!next) return false;
+    if(next.pos==="PUNCT" && /^[,.;:!?…\)\]\}»”’]$/u.test(next.text)) return false;
+    if(token.pos==="PUNCT" && /^[\(\[\{«„“]$/u.test(token.text)) return false;
+    return true;
   }
 
   function renderAnalyzedTokens(node,text,data){
@@ -113,7 +141,7 @@
         span.addEventListener("mouseenter",()=>renderCard(data,token.i,span));
       }
       node.appendChild(span);
-      if(i<tokens.length-1 && token.pos!=="PUNCT") node.append(" ");
+      if(shouldInsertSpace(token,tokens[i+1])) node.append(" ");
     });
   }
 
@@ -201,6 +229,15 @@
     hideYouTubeOverlay();
   }
 
+  function prefetchYouTubeAnalyses(index,horizon=5){
+    const cues=state.youtube.cues;
+    if(!cues?.length || index<0) return;
+    for(let i=index;i<=Math.min(cues.length-1,index+horizon);i++){
+      const text=cues[i]?.text;
+      if(text && !state.cache.has(text)) analyze(text).catch(()=>{});
+    }
+  }
+
   function renderTimedCue(mediaTime){
     const cues=state.youtube.cues;
     if(!cues?.length) return false;
@@ -217,6 +254,8 @@
       state.youtube.cueIndex=-1;
       return true;
     }
+
+    prefetchYouTubeAnalyses(cue.index);
 
     if(state.youtube.cueIndex!==cue.index){
       state.youtube.cueIndex=cue.index;
@@ -282,6 +321,9 @@
       state.youtube.cueIndex=-1;
       state.youtube.timedAvailable=true;
       bindYouTubeVideo();
+      const video=state.youtube.video || document.querySelector("video.html5-main-video") || document.querySelector("video");
+      const currentCue=video ? globalThis.GLEYoutubeCues.cueAtTime(cues,video.currentTime*1000) : cues[0];
+      prefetchYouTubeAnalyses(currentCue?.index ?? 0);
       renderTimedCue();
     }catch(_error){
       state.youtube.timedAvailable=false;
