@@ -14,8 +14,11 @@ button{margin-top:18px;padding:8px 14px}
 <label for="url">Language Engine HTTP adresi</label>
 <input id="url" type="url" value="http://127.0.0.1:8765">
 <label class="row"><input id="showTranslation" type="checkbox"> Türkçe cümle çevirisini altyazının altında göster</label>
+<label for="germanSize">Almanca altyazı boyutu</label>
+<div class="row"><input id="germanSize" type="range" min="70" max="150" step="5" value="100"><output id="germanSizeValue">100%</output></div>
 <label for="translationSize">Türkçe çeviri boyutu</label>
 <div class="row"><input id="translationSize" type="range" min="60" max="140" step="5" value="85"><output id="sizeValue">85%</output></div>
-<p><small>Kelime hover analizi bu ayardan bağımsızdır ve her zaman çalışır.</small></p>
+<p><small>Altyazı kutusunu YouTube videosu üzerinde ↕ tutamacından sürükleyerek yukarı/aşağı taşıyabilirsiniz. Konum otomatik kaydedilir.</small></p>
+<p><small>Kelime hover analizi bu ayarlardan bağımsızdır ve her zaman çalışır.</small></p>
 <button id="save">Kaydet</button> <span id="status"></span>
 <script src="options.js"></script>
