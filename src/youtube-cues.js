@@ -51,9 +51,17 @@
     return normalizeCueText(`${a} ${b}`);
   }
 
-  function eventText(event) {
+  function rawEventText(event) {
     const segments = Array.isArray(event?.segs) ? event.segs : [];
-    return normalizeCueText(segments.map(segment => segment.utf8 || "").join(""));
+    return segments.map(segment => segment.utf8 || "").join("");
+  }
+
+  function eventText(event) {
+    return normalizeCueText(rawEventText(event));
+  }
+
+  function isRollupBreak(event) {
+    return Boolean(event?.aAppend) && /^\s*\n\s*$/u.test(rawEventText(event));
   }
 
   function eventEndMs(event, startMs) {
@@ -66,10 +74,67 @@
     return startMs + (duration > 0 ? duration : 0);
   }
 
+  function parseRollupAsrCues(events) {
+    const rows = [];
+    let sawBreak = false;
+
+    for (const event of events) {
+      if (isRollupBreak(event)) {
+        sawBreak = true;
+        continue;
+      }
+
+      const text = eventText(event);
+      const startMs = Number(event?.tStartMs);
+      if (!text || !Number.isFinite(startMs)) continue;
+
+      rows.push({
+        startMs,
+        endMs: eventEndMs(event, startMs),
+        text,
+        windowId: event?.wWinId ?? null,
+      });
+    }
+
+    if (!sawBreak || rows.length < 2) return null;
+
+    const cues = [];
+    for (let i = 0; i < rows.length; i += 2) {
+      const first = rows[i];
+      const second = rows[i + 1];
+      const next = rows[i + 2];
+      const text = second ? normalizeCueText(`${first.text} ${second.text}`) : first.text;
+      const naturalEnd = Math.max(first.endMs, second?.endMs || 0);
+      const nextStart = next?.startMs;
+      const endMs = Number.isFinite(nextStart) && nextStart > first.startMs
+        ? nextStart
+        : naturalEnd > first.startMs
+          ? naturalEnd
+          : first.startMs + 1800;
+
+      cues.push({
+        startMs:first.startMs,
+        endMs,
+        text,
+      });
+    }
+
+    return cues;
+  }
+
   function parseJson3Cues(payload) {
     if (!Array.isArray(payload?.events)) return [];
 
-    const raw = payload.events.map(event => {
+    const sortedEvents = [...payload.events].sort(
+      (a, b) => Number(a?.tStartMs || 0) - Number(b?.tStartMs || 0)
+    );
+
+    const rollup = parseRollupAsrCues(sortedEvents);
+    if (rollup?.length) {
+      return rollup.map((cue, index) => ({...cue, index}));
+    }
+
+    const raw = sortedEvents.map(event => {
       const text = eventText(event);
       const startMs = Number(event?.tStartMs);
       if (!text || !Number.isFinite(startMs)) return null;
@@ -80,7 +145,7 @@
         append: Boolean(event?.aAppend),
         windowId: event?.wWinId ?? null,
       };
-    }).filter(Boolean).sort((a, b) => a.startMs - b.startMs);
+    }).filter(Boolean);
 
     raw.forEach((event, index) => {
       if (event.endMs <= event.startMs) {
@@ -92,14 +157,12 @@
     const cues = [];
     for (const event of raw) {
       const previous = cues[cues.length - 1];
-      const sameWindow = previous && event.windowId !== null && previous.windowId === event.windowId;
       const gap = previous ? event.startMs - previous.endMs : Infinity;
       const mergedText = previous ? mergeRollingText(previous.text, event.text) : event.text;
       const mergedWords = words(mergedText).length;
 
       const shouldMerge = previous && (
         event.append ||
-        sameWindow ||
         (gap <= 450 && gap >= -900 && !sentenceIsComplete(previous.text) && mergedWords <= 16 && mergedText.length <= 140)
       );
 
