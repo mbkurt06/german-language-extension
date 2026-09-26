@@ -9,7 +9,7 @@
     cache:new Map(),
     analysisInflight:new Map(),
     tooltip:null,
-    settings:{showSentenceTranslation:true,translationFontSize:85},
+    settings:{showSentenceTranslation:true,germanFontSize:100,translationFontSize:85,youtubeSubtitlePositionY:82},
     youtube:{
       overlay:null,
       germanLine:null,
@@ -173,6 +173,52 @@
     return node.dataset.gleSource || node.dataset.gleText || (node.innerText||node.textContent||"").trim();
   }
 
+  function clamp(value,min,max){
+    return Math.min(max,Math.max(min,value));
+  }
+
+  function applyYouTubeAppearance(){
+    const overlay=state.youtube.overlay;
+    const germanLine=state.youtube.germanLine;
+    if(!overlay || !germanLine) return;
+    germanLine.style.setProperty("--gle-german-font-scale",(state.settings.germanFontSize/100).toFixed(2));
+    overlay.style.top=clamp(Number(state.settings.youtubeSubtitlePositionY)||82,8,92)+"%";
+  }
+
+  function installYouTubeDragHandle(player,overlay,handle){
+    handle.addEventListener("pointerdown",event=>{
+      if(event.button!==0) return;
+      event.preventDefault();
+      event.stopPropagation();
+
+      const rect=player.getBoundingClientRect();
+      if(!rect.height) return;
+
+      const startY=event.clientY;
+      const startPosition=clamp(Number(state.settings.youtubeSubtitlePositionY)||82,8,92);
+      handle.setPointerCapture?.(event.pointerId);
+      overlay.classList.add("gle-dragging");
+
+      const onMove=moveEvent=>{
+        const next=clamp(startPosition+((moveEvent.clientY-startY)/rect.height)*100,8,92);
+        state.settings.youtubeSubtitlePositionY=next;
+        overlay.style.top=next+"%";
+      };
+
+      const finish=()=>{
+        handle.removeEventListener("pointermove",onMove);
+        handle.removeEventListener("pointerup",finish);
+        handle.removeEventListener("pointercancel",finish);
+        overlay.classList.remove("gle-dragging");
+        chrome.storage.sync.set({youtubeSubtitlePositionY:state.settings.youtubeSubtitlePositionY});
+      };
+
+      handle.addEventListener("pointermove",onMove);
+      handle.addEventListener("pointerup",finish);
+      handle.addEventListener("pointercancel",finish);
+    });
+  }
+
   function ensureYouTubeOverlay(){
     const player=document.querySelector(".html5-video-player");
     if(!player) return null;
@@ -182,14 +228,25 @@
       overlay=document.createElement("div");
       overlay.className="gle-youtube-overlay";
       overlay.hidden=true;
+
+      const handle=document.createElement("button");
+      handle.type="button";
+      handle.className="gle-youtube-drag-handle";
+      handle.textContent="↕";
+      handle.title="Altyazıyı yukarı/aşağı taşı";
+      handle.setAttribute("aria-label","Altyazıyı yukarı veya aşağı taşı");
+      overlay.appendChild(handle);
+
       const germanLine=document.createElement("div");
       germanLine.className="gle-youtube-german";
       overlay.appendChild(germanLine);
       player.appendChild(overlay);
+      installYouTubeDragHandle(player,overlay,handle);
     }
 
     state.youtube.overlay=overlay;
     state.youtube.germanLine=overlay.querySelector(".gle-youtube-german");
+    applyYouTubeAppearance();
     return {player,overlay,germanLine:state.youtube.germanLine};
   }
 
@@ -436,7 +493,12 @@
 
   state.tooltip=createTooltip();
 
-  chrome.storage.sync.get({showSentenceTranslation:true,translationFontSize:85},settings=>{
+  chrome.storage.sync.get({
+    showSentenceTranslation:true,
+    germanFontSize:100,
+    translationFontSize:85,
+    youtubeSubtitlePositionY:82
+  },settings=>{
     state.settings=settings;
     scan();
   });
@@ -444,7 +506,10 @@
   chrome.storage.onChanged.addListener((changes,area)=>{
     if(area!=="sync") return;
     if(changes.showSentenceTranslation) state.settings.showSentenceTranslation=changes.showSentenceTranslation.newValue;
+    if(changes.germanFontSize) state.settings.germanFontSize=changes.germanFontSize.newValue;
     if(changes.translationFontSize) state.settings.translationFontSize=changes.translationFontSize.newValue;
+    if(changes.youtubeSubtitlePositionY) state.settings.youtubeSubtitlePositionY=changes.youtubeSubtitlePositionY.newValue;
+    applyYouTubeAppearance();
 
     document.querySelectorAll(".gle-subtitle-translation").forEach(el=>el.remove());
     document.querySelectorAll("[data-gle-text]").forEach(node=>{
