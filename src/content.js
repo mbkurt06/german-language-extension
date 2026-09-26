@@ -100,9 +100,12 @@
       const text=parts.join(" ").replace(/\s+([,.!?;:])/g,"$1").replace(/\s+/g," ").trim();
       if(!text || text.length>=500) return;
       const primary=nodes[0];
-      nodes.forEach((node,i)=>{
-        if(!node.dataset.gleSource) node.dataset.gleSource=sourceText(node);
-        if(i>0) node.style.display="none";
+      nodes.forEach(node=>{
+        const liveText=(node.innerText||node.textContent||"").trim();
+        if(!node.dataset.gleSource || (liveText && !node.querySelector(".gle-word") && liveText!==node.dataset.gleSource)){
+          node.dataset.gleSource=liveText || sourceText(node);
+        }
+        node.style.removeProperty("display");
       });
       if(primary.dataset.gleText!==text || !primary.querySelector(".gle-word")) decorate(primary,text);
     });
