@@ -4,7 +4,7 @@
     {id:"zdf", host:/(^|\.)zdf\.de$/, selectors:["[class*='subtitle']","[class*='caption']","[aria-live='polite']"]},
     {id:"ard", host:/(^|\.)ardmediathek\.de$/, selectors:["[class*='subtitle']","[class*='caption']","[aria-live='polite']"]}
   ];
-  const state={lastText:"", cache:new Map(), tooltip:null};
+  const state={lastText:"", cache:new Map(), tooltip:null, settings:{showSentenceTranslation:true,translationFontSize:85}};
   const adapter=ADAPTERS.find(a=>a.host.test(location.hostname));
   if(!adapter) return;
 
@@ -38,6 +38,19 @@
     if(!response.ok) throw new Error("Engine "+response.status);
     const data=await response.json(); state.cache.set(text,data); return data;
   }
+  async function renderSentenceTranslation(node,text){
+    node.querySelector(".gle-subtitle-translation")?.remove();
+    if(!state.settings.showSentenceTranslation) return;
+    try{
+      const data=await analyze(text);
+      if(!data.sentence_meaning_tr || node.dataset.gleText!==text) return;
+      const line=document.createElement("span");
+      line.className="gle-subtitle-translation";
+      line.textContent=data.sentence_meaning_tr;
+      line.style.fontSize=state.settings.translationFontSize+"%";
+      node.appendChild(line);
+    }catch(_e){ /* Hover remains available even when translation fails. */ }
+  }
   function decorate(node,text){
     if(node.dataset.gleText===text) return;
     node.dataset.gleText=text; node.textContent="";
@@ -48,6 +61,7 @@
       });
       node.appendChild(span); if(i<tokenize(text).length-1) node.append(" ");
     });
+    renderSentenceTranslation(node,text);
   }
   function scan(){
     for(const selector of adapter.selectors) document.querySelectorAll(selector).forEach(node=>{
@@ -55,6 +69,14 @@
     });
   }
   state.tooltip=createTooltip();
+  chrome.storage.sync.get({showSentenceTranslation:true,translationFontSize:85},x=>{state.settings=x;scan();});
+  chrome.storage.onChanged.addListener((changes,area)=>{
+    if(area!=="sync") return;
+    if(changes.showSentenceTranslation) state.settings.showSentenceTranslation=changes.showSentenceTranslation.newValue;
+    if(changes.translationFontSize) state.settings.translationFontSize=changes.translationFontSize.newValue;
+    document.querySelectorAll(".gle-subtitle-translation").forEach(el=>el.remove());
+    document.querySelectorAll("[data-gle-text]").forEach(node=>{ if(state.settings.showSentenceTranslation) renderSentenceTranslation(node,node.dataset.gleText); });
+  });
   document.addEventListener("mousemove",e=>{ if(state.tooltip&&!state.tooltip.contains(e.target)&&!e.target.closest?.(".gle-word")) state.tooltip.hidden=true; });
   new MutationObserver(scan).observe(document.documentElement,{subtree:true,childList:true,characterData:true});
   scan();
