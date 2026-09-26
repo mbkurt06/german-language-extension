@@ -4,7 +4,7 @@
     {id:"zdf", host:/(^|\.)zdf\.de$/, selectors:["[class*='subtitle']","[class*='caption']","[aria-live='polite']"]},
     {id:"ard", host:/(^|\.)ardmediathek\.de$/, selectors:["[class*='subtitle']","[class*='caption']","[aria-live='polite']"]}
   ];
-  const state={lastText:"", cache:new Map(), tooltip:null, settings:{showSentenceTranslation:true,translationFontSize:85}};
+  const state={lastText:"", cache:new Map(), tooltip:null, youtubeOverlay:null, youtubeGermanLine:null, youtubeVideoId:"", youtubeCaptionsEnabled:null, youtubeTrackKey:"", youtubeFetchKey:"", youtubeLastAttemptKey:"", youtubeFetchFailures:0, youtubeRetryTimer:null, youtubeFetchId:0, youtubeTimedCues:null, youtubeCueIndex:-1, youtubeVideo:null, youtubeVideoListeners:null, youtubeVideoFrameId:null, youtubeFallbackHideTimer:null, youtubeLastInputAt:0, youtubeActiveContainer:null, youtubeSegmentTexts:new WeakMap(), settings:{showSentenceTranslation:true,translationFontSize:85}};
   const adapter=ADAPTERS.find(a=>a.host.test(location.hostname));
   if(!adapter) return;
 
@@ -67,27 +67,188 @@
       if(i<tokens.length-1 && token.pos!=="PUNCT") node.append(" ");
     });
   }
+  function renderFallbackTokens(node,text){
+    node.textContent="";
+    const parts=tokenize(text);
+    parts.forEach((part,i)=>{
+      const span=document.createElement("span");
+      span.textContent=part;
+      span.className=/^[\p{L}\p{M}]/u.test(part)?"gle-word":"gle-punct";
+      node.appendChild(span);
+      if(i<parts.length-1) node.append(" ");
+    });
+  }
   async function decorate(node,text){
     if(node.dataset.gleText===text) return;
     node.dataset.gleText=text;
+    renderFallbackTokens(node,text);
     try{
       const data=await analyze(text);
       if(node.dataset.gleText!==text) return;
       renderAnalyzedTokens(node,text,data);
       await renderSentenceTranslation(node,text);
-    }catch(_e){
-      if(node.dataset.gleText!==text) return;
-      node.textContent="";
-      tokenize(text).forEach((part,i)=>{
-        const span=document.createElement("span"); span.textContent=part; span.className=/^[\p{L}\p{M}]/u.test(part)?"gle-word":"gle-punct";
-        node.appendChild(span); if(i<tokenize(text).length-1) node.append(" ");
-      });
-    }
+    }catch(_e){ /* Keep the timed subtitle visible if analysis is unavailable. */ }
   }
   function sourceText(node){
     return node.dataset.gleSource || node.dataset.gleText || (node.innerText||node.textContent||"").trim();
   }
+  const {parseJson3Cues,cueAtTime}=globalThis.GLEYoutubeCues;
+  function resetYouTubeTrack(videoId){
+    clearTimeout(state.youtubeFallbackHideTimer);
+    state.youtubeFallbackHideTimer=null;
+    state.youtubeVideoId=videoId;
+    state.youtubeCaptionsEnabled=null;
+    state.youtubeTrackKey="";
+    state.youtubeFetchKey="";
+    state.youtubeLastAttemptKey="";
+    state.youtubeFetchFailures=0;
+    clearTimeout(state.youtubeRetryTimer);
+    state.youtubeRetryTimer=null;
+    state.youtubeFetchId++;
+    state.youtubeTimedCues=null;
+    state.youtubeCueIndex=-1;
+    state.youtubeActiveContainer=null;
+    state.youtubeSegmentTexts=new WeakMap();
+    if(state.youtubeOverlay) state.youtubeOverlay.hidden=true;
+  }
+  function renderTimedCue(mediaTime){
+    if(!state.youtubeTimedCues) return false;
+    const video=state.youtubeVideo || document.querySelector("video.html5-main-video") || document.querySelector("video");
+    const player=document.querySelector(".html5-video-player");
+    if(!video || !player) return true;
+    const {overlay,germanLine}=ensureYouTubeOverlay(player);
+    const seconds=Number.isFinite(mediaTime)?mediaTime:video.currentTime;
+    const cue=cueAtTime(state.youtubeTimedCues,seconds*1000);
+    if(!cue){ overlay.hidden=true; state.youtubeCueIndex=-1; return true; }
+    overlay.hidden=false;
+    if(state.youtubeCueIndex!==cue.index){
+      state.youtubeCueIndex=cue.index;
+      decorate(germanLine,cue.text);
+    }
+    return true;
+  }
+  function bindYouTubeVideo(){
+    const video=document.querySelector("video.html5-main-video") || document.querySelector("video");
+    if(!video || video===state.youtubeVideo) return video;
+    if(state.youtubeVideo && state.youtubeVideoListeners){
+      ["timeupdate","seeking","seeked","play","pause","ratechange"].forEach(type=>state.youtubeVideo.removeEventListener(type,state.youtubeVideoListeners));
+      if(state.youtubeVideoFrameId!==null && state.youtubeVideo.cancelVideoFrameCallback) state.youtubeVideo.cancelVideoFrameCallback(state.youtubeVideoFrameId);
+    }
+    state.youtubeVideo=video;
+    state.youtubeVideoListeners=()=>renderTimedCue();
+    ["timeupdate","seeking","seeked","play","pause","ratechange"].forEach(type=>video.addEventListener(type,state.youtubeVideoListeners));
+    if(video.requestVideoFrameCallback){
+      const onFrame=(_now,metadata)=>{
+        if(state.youtubeVideo!==video) return;
+        renderTimedCue(metadata.mediaTime);
+        state.youtubeVideoFrameId=video.requestVideoFrameCallback(onFrame);
+      };
+      state.youtubeVideoFrameId=video.requestVideoFrameCallback(onFrame);
+    }
+    return video;
+  }
+  async function loadYouTubeTrack(videoId,track){
+    let url;
+    try{ url=new URL(track.baseUrl); }catch(_error){ return; }
+    if(url.hostname!=="youtube.com" && !url.hostname.endsWith(".youtube.com")) return;
+    url.searchParams.set("fmt","json3");
+    const key=`${videoId}|${track.vssId||track.languageCode||""}|${url.href}`;
+    if(key===state.youtubeTrackKey || key===state.youtubeFetchKey) return;
+    if(key!==state.youtubeLastAttemptKey){
+      state.youtubeLastAttemptKey=key;
+      state.youtubeFetchFailures=0;
+    }
+    const requestId=++state.youtubeFetchId;
+    state.youtubeFetchKey=key;
+    state.youtubeTimedCues=null;
+    try{
+      const response=await fetch(url.href,{credentials:"include",cache:"no-store"});
+      if(!response.ok) throw new Error(`Caption track ${response.status}`);
+      const raw=(await response.text()).replace(/^\)\]\}'\s*/,"");
+      const cues=parseJson3Cues(JSON.parse(raw));
+      if(!cues.length) throw new Error("Caption track contained no timed cues");
+      if(requestId!==state.youtubeFetchId || videoId!==state.youtubeVideoId) return;
+      state.youtubeFetchKey="";
+      state.youtubeTrackKey=key;
+      state.youtubeTimedCues=cues;
+      state.youtubeCueIndex=-1;
+      state.youtubeFetchFailures=0;
+      clearTimeout(state.youtubeRetryTimer);
+      state.youtubeRetryTimer=null;
+      bindYouTubeVideo();
+      renderTimedCue();
+    }catch(_error){
+      if(requestId!==state.youtubeFetchId) return;
+      state.youtubeFetchKey="";
+      state.youtubeTrackKey="";
+      state.youtubeTimedCues=null;
+      state.youtubeFetchFailures++;
+      if(state.youtubeFetchFailures<=2){
+        clearTimeout(state.youtubeRetryTimer);
+        state.youtubeRetryTimer=setTimeout(()=>{
+          state.youtubeRetryTimer=null;
+          if(videoId===state.youtubeVideoId) window.postMessage({source:"gle-youtube-content",type:"refresh"},location.origin);
+        },state.youtubeFetchFailures*2500);
+      }
+    }
+  }
+  function receiveYouTubeTrack(event){
+    const message=event.data;
+    if(event.source!==window || event.origin!==location.origin || message?.source!=="gle-youtube-caption-bridge") return;
+    if(message.videoId && message.videoId!==state.youtubeVideoId) resetYouTubeTrack(message.videoId);
+    state.youtubeCaptionsEnabled=message.enabled!==false;
+    if(!state.youtubeCaptionsEnabled){
+      state.youtubeFetchId++;
+      state.youtubeFetchKey="";
+      clearTimeout(state.youtubeRetryTimer);
+      state.youtubeRetryTimer=null;
+      state.youtubeTimedCues=null;
+      state.youtubeTrackKey=`${state.youtubeVideoId}|disabled`;
+      state.youtubeSegmentTexts=new WeakMap();
+      if(state.youtubeOverlay) state.youtubeOverlay.hidden=true;
+      return;
+    }
+    if(!message.track?.baseUrl){
+      state.youtubeFetchId++;
+      state.youtubeFetchKey="";
+      clearTimeout(state.youtubeRetryTimer);
+      state.youtubeRetryTimer=null;
+      state.youtubeTimedCues=null;
+      state.youtubeTrackKey=`${state.youtubeVideoId}|no-track`;
+      state.youtubeSegmentTexts=new WeakMap();
+      scanYouTube();
+      return;
+    }
+    loadYouTubeTrack(message.videoId, message.track);
+  }
+  function installYouTubeBridge(){
+    window.addEventListener("message",receiveYouTubeTrack);
+    const script=document.createElement("script");
+    script.src=chrome.runtime.getURL("src/youtube-bridge.js");
+    script.onload=()=>script.remove();
+    (document.head || document.documentElement).appendChild(script);
+  }
+  function ensureYouTubeOverlay(player){
+    let overlay=player.querySelector(".gle-youtube-overlay");
+    if(!overlay){
+      overlay=document.createElement("div");
+      overlay.className="gle-youtube-overlay";
+      const germanLine=document.createElement("div");
+      germanLine.className="gle-youtube-german";
+      overlay.appendChild(germanLine);
+      player.appendChild(overlay);
+    }
+    state.youtubeOverlay=overlay;
+    state.youtubeGermanLine=overlay.querySelector(".gle-youtube-german");
+    return {overlay,germanLine:state.youtubeGermanLine};
+  }
   function scanYouTube(){
+    const player=document.querySelector(".html5-video-player");
+    if(!player) return;
+    if(state.youtubeCaptionsEnabled===false){
+      if(state.youtubeOverlay) state.youtubeOverlay.hidden=true;
+      return;
+    }
     const groups=new Map();
     document.querySelectorAll(".ytp-caption-segment").forEach(node=>{
       const container=node.closest(".ytp-caption-window-bottom") || node.parentElement;
@@ -95,20 +256,49 @@
       if(!groups.has(container)) groups.set(container,[]);
       groups.get(container).push(node);
     });
-    groups.forEach(nodes=>{
-      const parts=nodes.map(sourceText).filter(Boolean);
-      const text=parts.join(" ").replace(/\s+([,.!?;:])/g,"$1").replace(/\s+/g," ").trim();
-      if(!text || text.length>=500) return;
-      const primary=nodes[0];
+    const entries=[...groups].map(([container,nodes])=>{
+      const changedParts=[];
       nodes.forEach(node=>{
-        const liveText=(node.innerText||node.textContent||"").trim();
-        if(!node.dataset.gleSource || (liveText && !node.querySelector(".gle-word") && liveText!==node.dataset.gleSource)){
-          node.dataset.gleSource=liveText || sourceText(node);
+        const part=(node.innerText||node.textContent||"").trim();
+        const previous=state.youtubeSegmentTexts.get(node);
+        if(previous!==part){
+          state.youtubeSegmentTexts.set(node,part);
+          if(part) changedParts.push(part);
         }
-        node.style.removeProperty("display");
       });
-      if(primary.dataset.gleText!==text || !primary.querySelector(".gle-word")) decorate(primary,text);
+      const text=changedParts.join(" ").replace(/\s+([,.!?;:])/g,"$1").replace(/\s+/g," ").trim();
+      return {container,nodes,text};
     });
+    const changedEntries=entries.filter(entry=>entry.text);
+    const activeEntry=entries.find(entry=>entry.container===state.youtubeActiveContainer);
+    const current=changedEntries[changedEntries.length-1];
+    entries.forEach(entry=>entry.container.style.setProperty("visibility","hidden","important"));
+    const {overlay,germanLine}=ensureYouTubeOverlay(player);
+    if(state.youtubeTimedCues){
+      bindYouTubeVideo();
+      renderTimedCue();
+      return;
+    }
+    if(current?.text && current.text.length<500){
+      state.youtubeActiveContainer=current.container;
+      state.youtubeLastInputAt=Date.now();
+      clearTimeout(state.youtubeFallbackHideTimer);
+      state.youtubeFallbackHideTimer=null;
+      overlay.hidden=false;
+      decorate(germanLine,current.text);
+      return;
+    }
+    const activeStillPresent=activeEntry?.nodes.some(node=>(node.innerText||node.textContent||"").trim());
+    if(activeStillPresent && Date.now()-state.youtubeLastInputAt<5000) return;
+    if(state.youtubeFallbackHideTimer===null){
+      state.youtubeFallbackHideTimer=setTimeout(()=>{
+        state.youtubeFallbackHideTimer=null;
+        if(state.youtubeTimedCues) return;
+        overlay.hidden=true;
+        state.youtubeActiveContainer=null;
+        state.youtubeSegmentTexts=new WeakMap();
+      },350);
+    }
   }
   function scan(){
     if(adapter.id==="youtube"){ scanYouTube(); return; }
@@ -126,6 +316,12 @@
     document.querySelectorAll("[data-gle-text]").forEach(node=>{ if(state.settings.showSentenceTranslation) renderSentenceTranslation(node,node.dataset.gleText); });
   });
   document.addEventListener("mousemove",e=>{ if(state.tooltip&&!state.tooltip.contains(e.target)&&!e.target.closest?.(".gle-word")) state.tooltip.hidden=true; });
-  new MutationObserver(scan).observe(document.documentElement,{subtree:true,childList:true,characterData:true});
+  if(adapter.id==="youtube") installYouTubeBridge();
+  let scanScheduled=false;
+  new MutationObserver(()=>{
+    if(scanScheduled) return;
+    scanScheduled=true;
+    requestAnimationFrame(()=>{scanScheduled=false;scan();});
+  }).observe(document.documentElement,{subtree:true,childList:true,characterData:true});
   scan();
 })();
