@@ -60,7 +60,7 @@
     }
 
     url.searchParams.set("fmt", "json3");
-    const key = \`\${videoId}|\${track.vssId || track.languageCode || ""}|\${url.href}\`;
+    const key = `${videoId}|${track.vssId || track.languageCode || ""}|${url.href}`;
     if (key === lastTrackKey || key === inflightKey) return;
 
     inflightKey = key;
@@ -70,7 +70,7 @@
         cache: "no-store",
         redirect: "follow",
       });
-      if (!response.ok) throw new Error(\`HTTP \${response.status}\`);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
       const raw = (await response.text()).replace(/^\)\]\}'\s*/, "");
       const payload = JSON.parse(raw);
