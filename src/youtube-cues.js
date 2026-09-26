@@ -45,12 +45,12 @@
     }
 
     if (overlap) {
-      return normalizeCueText(\`\${a} \${bWords.slice(overlap).join(" ")}\`);
+      return normalizeCueText(`${a} ${bWords.slice(overlap).join(" ")}`);
     }
 
     if (aWords.length <= 3 || bWords.length <= 3) return b;
 
-    return normalizeCueText(\`\${a} \${b}\`);
+    return normalizeCueText(`${a} ${b}`);
   }
 
   function eventText(event) {
