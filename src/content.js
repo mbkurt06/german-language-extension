@@ -92,7 +92,6 @@
   function sourceText(node){
     return node.dataset.gleSource || node.dataset.gleText || (node.innerText||node.textContent||"").trim();
   }
-  const {parseJson3Cues,cueAtTime}=globalThis.GLEYoutubeCues;
   function resetYouTubeTrack(videoId){
     clearTimeout(state.youtubeFallbackHideTimer);
     state.youtubeFallbackHideTimer=null;
