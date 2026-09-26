@@ -69,3 +69,42 @@ test("aAppend events merge by overlap without repeating the shared words", () =>
   assert.equal(cues.length, 1);
   assert.equal(cues[0].text, "Wir lernen Deutsch.");
 });
+
+
+test("YouTube ASR rollup rows become stable two-line cues instead of one giant cue", () => {
+  const cues = parseJson3Cues({
+    events: [
+      { tStartMs: 0, dDurationMs: 1180400, wWinId: 0 },
+      { tStartMs: 480, dDurationMs: 5720, wWinId: 1, segs: [{ utf8: "Liebe Freunde der Sonne, herzlich" }] },
+      { tStartMs: 3629, dDurationMs: 2571, wWinId: 1, aAppend: 1, segs: [{ utf8: "\n" }] },
+      { tStartMs: 3639, dDurationMs: 5201, wWinId: 1, segs: [{ utf8: "willkommen zu einem neuen Video. Wir" }] },
+      { tStartMs: 6190, dDurationMs: 2650, wWinId: 1, aAppend: 1, segs: [{ utf8: "\n" }] },
+      { tStartMs: 6200, dDurationMs: 5280, wWinId: 1, segs: [{ utf8: "wollen heute über das Wort erst" }] },
+      { tStartMs: 8830, dDurationMs: 2650, wWinId: 1, aAppend: 1, segs: [{ utf8: "\n" }] },
+      { tStartMs: 8840, dDurationMs: 5120, wWinId: 1, segs: [{ utf8: "sprechen. Was bedeutet dieses Wort? In" }] },
+      { tStartMs: 11470, dDurationMs: 2490, wWinId: 1, aAppend: 1, segs: [{ utf8: "\n" }] },
+      { tStartMs: 11480, dDurationMs: 5639, wWinId: 1, segs: [{ utf8: "welchen Kontexten benutzen wir das?" }] },
+      { tStartMs: 13950, dDurationMs: 3169, wWinId: 1, aAppend: 1, segs: [{ utf8: "\n" }] },
+      { tStartMs: 13960, dDurationMs: 5520, wWinId: 1, segs: [{ utf8: "Diese Fragen werde ich euch heute in" }] },
+      { tStartMs: 17109, dDurationMs: 2371, wWinId: 1, aAppend: 1, segs: [{ utf8: "\n" }] },
+      { tStartMs: 17119, dDurationMs: 7721, wWinId: 1, segs: [{ utf8: "diesem Video beantworten und wir" }] },
+      { tStartMs: 19470, dDurationMs: 5370, wWinId: 1, aAppend: 1, segs: [{ utf8: "\n" }] },
+      { tStartMs: 19480, dDurationMs: 5360, wWinId: 1, segs: [{ utf8: "benutzen dafür natürlich unsere Fantasie" }] },
+      { tStartMs: 25230, wWinId: 1, aAppend: 1, segs: [{ utf8: "\n" }] },
+      { tStartMs: 25240, dDurationMs: 6160, wWinId: 1, segs: [{ utf8: "Fantasie an. [räuspern]" }] },
+      { tStartMs: 28710, dDurationMs: 2690, wWinId: 1, aAppend: 1, segs: [{ utf8: "\n" }] },
+      { tStartMs: 28720, dDurationMs: 4999, wWinId: 1, segs: [{ utf8: "Und bevor es losgeht, möchte ich mich" }] },
+    ],
+  });
+
+  assert.equal(cues.length, 5);
+  assert.deepEqual(cues[3], {
+    startMs: 17119,
+    endMs: 25240,
+    text: "diesem Video beantworten und wir benutzen dafür natürlich unsere Fantasie",
+    index: 3,
+  });
+  assert.equal(cues[4].text, "Fantasie an. [räuspern] Und bevor es losgeht, möchte ich mich");
+  assert.equal(cueAtTime(cues, 20000)?.index, 3);
+  assert.equal(cueAtTime(cues, 26000)?.index, 4);
+});
