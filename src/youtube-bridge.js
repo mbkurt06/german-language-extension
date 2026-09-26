@@ -1,10 +1,89 @@
 (() => {
   const SOURCE = "gle-youtube-caption-bridge";
+  const DEBUG_KEY = "__GLE_YOUTUBE_BRIDGE_DEBUG__";
+  const potByVideoId = new Map();
   let lastTrackKey = "";
   let inflightKey = "";
+  let lastMissingPotKey = "";
 
   function post(message) {
     window.postMessage({source: SOURCE, ...message}, location.origin);
+  }
+
+  function captureTimedtextUrl(value) {
+    if (!value) return false;
+
+    let raw = value;
+    if (typeof Request !== "undefined" && value instanceof Request) raw = value.url;
+    if (raw instanceof URL) raw = raw.href;
+    if (typeof raw !== "string") return false;
+
+    let url;
+    try {
+      url = new URL(raw, location.href);
+    } catch (_error) {
+      return false;
+    }
+
+    if (!/\/timedtext$/i.test(url.pathname)) return false;
+
+    const videoId = url.searchParams.get("v");
+    const pot = url.searchParams.get("pot");
+    if (!videoId || !pot) return false;
+
+    const changed = potByVideoId.get(videoId) !== pot;
+    potByVideoId.set(videoId, pot);
+
+    if (changed) {
+      lastMissingPotKey = "";
+      post({type:"pot-captured", videoId});
+      setTimeout(inspectPlayer, 0);
+    }
+
+    return true;
+  }
+
+  function captureExistingResources() {
+    try {
+      performance.getEntriesByType("resource").forEach(entry => captureTimedtextUrl(entry.name));
+    } catch (_error) {}
+  }
+
+  function installNetworkCapture() {
+    if (window[DEBUG_KEY]?.installed) return;
+
+    const originalOpen = XMLHttpRequest.prototype.open;
+    XMLHttpRequest.prototype.open = function(method, url) {
+      captureTimedtextUrl(url);
+      return originalOpen.apply(this, arguments);
+    };
+
+    const originalFetch = window.fetch;
+    if (typeof originalFetch === "function") {
+      window.fetch = function(input) {
+        captureTimedtextUrl(input);
+        return Reflect.apply(originalFetch, this, arguments);
+      };
+    }
+
+    try {
+      const observer = new PerformanceObserver(list => {
+        for (const entry of list.getEntries()) captureTimedtextUrl(entry.name);
+      });
+      observer.observe({type:"resource", buffered:true});
+    } catch (_error) {}
+
+    window[DEBUG_KEY] = {
+      installed:true,
+      getPot(videoId) {
+        return potByVideoId.get(videoId) || null;
+      },
+      getKnownVideoIds() {
+        return [...potByVideoId.keys()];
+      },
+    };
+
+    captureExistingResources();
   }
 
   function getPlayerResponse(player) {
@@ -29,7 +108,7 @@
       selected = player?.getOption?.("captions", "track");
     } catch (_error) {}
 
-    const selectedId = selected?.vssId;
+    const selectedId = selected?.vssId || selected?.vss_id;
     const selectedLanguage = selected?.languageCode;
     const exact = tracks.find(track => selectedId && track.vssId === selectedId);
     const selectedGerman = tracks.find(track =>
@@ -50,6 +129,16 @@
     return Boolean(document.querySelector(".ytp-caption-segment"));
   }
 
+  async function waitForPot(videoId, timeoutMs = 3500) {
+    const started = performance.now();
+    while (performance.now() - started < timeoutMs) {
+      const pot = potByVideoId.get(videoId);
+      if (pot) return pot;
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+    return potByVideoId.get(videoId) || null;
+  }
+
   async function fetchTrack(videoId, track) {
     let url;
     try {
@@ -59,7 +148,20 @@
       return;
     }
 
+    const pot = potByVideoId.get(videoId) || await waitForPot(videoId);
+    if (!pot) {
+      const missingKey = `${videoId}|${track.vssId || track.languageCode || ""}`;
+      if (missingKey !== lastMissingPotKey) {
+        lastMissingPotKey = missingKey;
+        post({type:"track-error", videoId, reason:"missing-pot"});
+      }
+      return;
+    }
+
     url.searchParams.set("fmt", "json3");
+    url.searchParams.set("c", "WEB");
+    url.searchParams.set("pot", pot);
+
     const key = `${videoId}|${track.vssId || track.languageCode || ""}|${url.href}`;
     if (key === lastTrackKey || key === inflightKey) return;
 
@@ -73,8 +175,11 @@
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
       const raw = (await response.text()).replace(/^\)\]\}'\s*/, "");
+      if (!raw.trim()) throw new Error("empty-caption-response");
+
       const payload = JSON.parse(raw);
       lastTrackKey = key;
+      lastMissingPotKey = "";
       post({
         type:"track-data",
         videoId,
@@ -106,19 +211,23 @@
       videoId,
       enabled,
       hasTrack:Boolean(track?.baseUrl),
+      hasPot:Boolean(videoId && potByVideoId.get(videoId)),
       languageCode:track?.languageCode || "",
       kind:track?.kind || "",
     });
 
-    if (enabled && track?.baseUrl) fetchTrack(videoId, track);
+    if (enabled && videoId && track?.baseUrl) fetchTrack(videoId, track);
   }
 
   function reset() {
     lastTrackKey = "";
     inflightKey = "";
+    lastMissingPotKey = "";
     setTimeout(inspectPlayer, 0);
     setTimeout(inspectPlayer, 800);
   }
+
+  installNetworkCapture();
 
   window.addEventListener("message", event => {
     if (event.source !== window || event.origin !== location.origin) return;
