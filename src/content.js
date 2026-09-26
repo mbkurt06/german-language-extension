@@ -21,12 +21,14 @@
     const notes=h.usage_notes||[];
     const more=(h.dictionary_meanings_tr||[]).join(", ");
     const sentence=data.sentence_meaning_tr ? `<div class="gle-sentence">🇹🇷 ${esc(data.sentence_meaning_tr)}</div>` : "";
+    const sourceToken=(data.tokens||[]).find(token=>token.i===tokenIndex);
+    const source=sourceToken?.text ? `<div class="gle-source"><b>Almanca:</b> ${esc(sourceToken.text)}</div>` : "";
     const expression=expr ? `<div class="gle-expression"><b>${esc(expr.canonical)}</b><div>→ ${esc((expr.meaning_tr||[])[0]||"")}</div>${expr.grammar_hint?`<small>${esc(expr.grammar_hint)}</small>`:""}</div>` : "";
     const contextual=h.contextual_word_meaning_tr ? `<div class="gle-context"><b>Bu cümlede:</b> ${esc(h.contextual_word_meaning_tr)}</div>` : "";
     const usage=notes.map(n=>`<div class="gle-note"><b>${esc(n.label)}</b> · ${esc(n.explanation_tr)}</div>`).join("");
     const noun=lexical?.article ? `<div class="gle-lexical"><b>${esc(lexical.article)} ${esc(lexical.singular)}</b> · die ${esc(lexical.plural)}</div>` : "";
     const dictionary=more ? `<details><summary>Kelime anlamları</summary><div>${esc(more)}</div></details>` : "";
-    state.tooltip.innerHTML=sentence+expression+contextual+usage+noun+dictionary || `<div>Henüz analiz yok.</div>`;
+    state.tooltip.innerHTML=sentence+source+expression+contextual+usage+noun+dictionary || `<div>Henüz analiz yok.</div>`;
     const r=anchor.getBoundingClientRect(); state.tooltip.hidden=false;
     state.tooltip.style.left=Math.min(window.innerWidth-370,Math.max(8,r.left))+"px";
     state.tooltip.style.top=Math.max(8,r.top-state.tooltip.offsetHeight-10)+"px";
@@ -82,9 +84,33 @@
       });
     }
   }
+  function sourceText(node){
+    return node.dataset.gleSource || node.dataset.gleText || (node.innerText||node.textContent||"").trim();
+  }
+  function scanYouTube(){
+    const groups=new Map();
+    document.querySelectorAll(".ytp-caption-segment").forEach(node=>{
+      const container=node.closest(".ytp-caption-window-bottom") || node.parentElement;
+      if(!container) return;
+      if(!groups.has(container)) groups.set(container,[]);
+      groups.get(container).push(node);
+    });
+    groups.forEach(nodes=>{
+      const parts=nodes.map(sourceText).filter(Boolean);
+      const text=parts.join(" ").replace(/\s+([,.!?;:])/g,"$1").replace(/\s+/g," ").trim();
+      if(!text || text.length>=500) return;
+      const primary=nodes[0];
+      nodes.forEach((node,i)=>{
+        if(!node.dataset.gleSource) node.dataset.gleSource=sourceText(node);
+        if(i>0) node.style.display="none";
+      });
+      if(primary.dataset.gleText!==text || !primary.querySelector(".gle-word")) decorate(primary,text);
+    });
+  }
   function scan(){
+    if(adapter.id==="youtube"){ scanYouTube(); return; }
     for(const selector of adapter.selectors) document.querySelectorAll(selector).forEach(node=>{
-      const text=node.dataset.gleText || (node.innerText||node.textContent||"").trim(); if(text && text.length<500 && !node.querySelector(".gle-word")) decorate(node,text);
+      const text=sourceText(node); if(text && text.length<500 && !node.querySelector(".gle-word")) decorate(node,text);
     });
   }
   state.tooltip=createTooltip();
