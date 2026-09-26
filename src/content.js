@@ -22,13 +22,13 @@
     const more=(h.dictionary_meanings_tr||[]).join(", ");
     const sentence=data.sentence_meaning_tr ? `<div class="gle-sentence">🇹🇷 ${esc(data.sentence_meaning_tr)}</div>` : "";
     const sourceToken=(data.tokens||[]).find(token=>token.i===tokenIndex);
-    const source=sourceToken?.text ? `<div class="gle-source"><b>Almanca:</b> ${esc(sourceToken.text)}</div>` : "";
+    const source=sourceToken?.text && !lexical?.article ? `<div class="gle-source"><b>Almanca:</b> ${esc(sourceToken.lemma||sourceToken.text)}</div>` : "";
     const expression=expr ? `<div class="gle-expression"><b>${esc(expr.canonical)}</b><div>→ ${esc((expr.meaning_tr||[])[0]||"")}</div>${expr.grammar_hint?`<small>${esc(expr.grammar_hint)}</small>`:""}</div>` : "";
     const contextual=h.contextual_word_meaning_tr ? `<div class="gle-context"><b>Bu cümlede:</b> ${esc(h.contextual_word_meaning_tr)}</div>` : "";
     const usage=notes.map(n=>`<div class="gle-note"><b>${esc(n.label)}</b> · ${esc(n.explanation_tr)}</div>`).join("");
     const noun=lexical?.article ? `<div class="gle-lexical"><b>${esc(lexical.article)} ${esc(lexical.singular)}</b> · die ${esc(lexical.plural)}</div>` : "";
     const dictionary=more ? `<details><summary>Kelime anlamları</summary><div>${esc(more)}</div></details>` : "";
-    state.tooltip.innerHTML=sentence+source+expression+contextual+usage+noun+dictionary || `<div>Henüz analiz yok.</div>`;
+    state.tooltip.innerHTML=sentence+source+expression+noun+contextual+usage+dictionary || `<div>Henüz analiz yok.</div>`;
     const r=anchor.getBoundingClientRect(); state.tooltip.hidden=false;
     state.tooltip.style.left=Math.min(window.innerWidth-370,Math.max(8,r.left))+"px";
     state.tooltip.style.top=Math.max(8,r.top-state.tooltip.offsetHeight-10)+"px";
