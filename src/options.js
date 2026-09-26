@@ -1,0 +1,1 @@
+const input=document.querySelector("#url"),status=document.querySelector("#status");chrome.storage.sync.get({engineUrl:"http://127.0.0.1:8765"},x=>input.value=x.engineUrl);document.querySelector("#save").onclick=()=>chrome.storage.sync.set({engineUrl:input.value.trim()},()=>{status.textContent=" Kaydedildi.";setTimeout(()=>status.textContent="",1500)});
