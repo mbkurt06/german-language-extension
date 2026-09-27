@@ -222,11 +222,12 @@
 
   function hoverTextForCue(cues, index) {
     if (!Array.isArray(cues) || !cues[index]) return "";
-    return normalizeCueText([
-      cues[index - 1]?.text,
-      cues[index]?.text,
-      cues[index + 1]?.text,
-    ].filter(Boolean).join(" "));
+    const parts = [];
+    for (let offset = -2; offset <= 2; offset++) {
+      const text = cues[index + offset]?.text;
+      if (text) parts.push(text);
+    }
+    return normalizeCueText(parts.join(" "));
   }
 
   function cueAtTime(cues, timeMs) {
