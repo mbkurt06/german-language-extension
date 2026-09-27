@@ -149,10 +149,9 @@
       ? `<div class="gle-context gle-context-primary"><b>Bu cümlede:</b> ${esc(primaryMeaning)}</div>`
       : "";
 
-    const grammarNotes=notes.filter(note=>note.kind==="GRAMMAR_ROLE");
-    const otherNotes=notes.filter(note=>note.kind!=="GRAMMAR_ROLE");
-    const role=grammarNotes.map(note=>`<div class="gle-role"><b>Görevi:</b> ${esc(note.explanation_tr)}</div>`).join("");
-    const usage=otherNotes.map(note=>`<div class="gle-note"><b>${esc(note.label)}</b> · ${esc(note.explanation_tr)}</div>`).join("");
+    const usage=notes.filter(note=>note.kind!=="GRAMMAR_ROLE")
+      .map(note=>`<div class="gle-note"><b>${esc(note.label)}</b> · ${esc(note.explanation_tr)}</div>`)
+      .join("");
 
     const grammarHint=expr?.grammar_hint
       ? `<div class="gle-note"><b>Yapı:</b> ${esc(expr.grammar_hint)}</div>`
@@ -183,7 +182,7 @@
       ? `<div class="gle-learn-actions"><button type="button" class="gle-learn-button gle-learn-toggle" title="${learning?"Öğreniyorum listesinden kaldır":"Öğreniyorum listesine ekle"}" aria-label="${learning?"Öğreniyorum listesinden kaldır":"Öğreniyorum listesine ekle"}" data-kind="${escAttr(learnTarget.kind)}" data-key="${escAttr(learnTarget.key)}" data-label="${escAttr(learnTarget.label)}" data-meaning="${escAttr(learnTarget.meaning)}">${learning?"★":"☆"} <span>Öğren</span></button></div>`
       : "";
 
-    state.tooltip.innerHTML=header+contextual+role+grammarHint+noun+standalone+usage+dictionary+learnAction || "<div>Henüz analiz yok.</div>";
+    state.tooltip.innerHTML=header+contextual+grammarHint+noun+standalone+usage+dictionary+learnAction || "<div>Henüz analiz yok.</div>";
     const learnButton=state.tooltip.querySelector(".gle-learn-toggle");
     if(learnButton){
       learnButton.addEventListener("click",()=>{
