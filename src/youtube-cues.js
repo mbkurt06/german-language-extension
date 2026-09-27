@@ -220,6 +220,15 @@
     return normalizeCueText(source);
   }
 
+  function hoverTextForCue(cues, index) {
+    if (!Array.isArray(cues) || !cues[index]) return "";
+    return normalizeCueText([
+      cues[index - 1]?.text,
+      cues[index]?.text,
+      cues[index + 1]?.text,
+    ].filter(Boolean).join(" "));
+  }
+
   function cueAtTime(cues, timeMs) {
     let low = 0;
     let high = cues.length - 1;
@@ -238,7 +247,7 @@
     return candidate && timeMs < candidate.endMs ? candidate : null;
   }
 
-  const api = { normalizeCueText, mergeRollingText, parseJson3Cues, cueAtTime, sentenceIsComplete, translationTextForCue };
+  const api = { normalizeCueText, mergeRollingText, parseJson3Cues, cueAtTime, sentenceIsComplete, translationTextForCue, hoverTextForCue };
   globalThis.GLEYoutubeCues = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();
