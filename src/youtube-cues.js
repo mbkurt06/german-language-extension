@@ -74,6 +74,20 @@
     return startMs + (duration > 0 ? duration : 0);
   }
 
+  function splitTrailingSentenceFragment(text) {
+    const normalized = normalizeCueText(text);
+    if (!normalized) return {display:"", carry:""};
+
+    const matches = [...normalized.matchAll(/[.!?…]["'»”’)}\]]*(?=\s|$)/gu)];
+    if (!matches.length) return {display:normalized, carry:""};
+
+    const last = matches[matches.length - 1];
+    const boundary = last.index + last[0].length;
+    const display = normalized.slice(0, boundary).trim();
+    const carry = normalized.slice(boundary).trim();
+    return {display, carry};
+  }
+
   function parseRollupAsrCues(events) {
     const rows = [];
     let sawBreak = false;
@@ -99,11 +113,24 @@
     if (!sawBreak || rows.length < 2) return null;
 
     const cues = [];
+    let carry = "";
     for (let i = 0; i < rows.length; i += 2) {
       const first = rows[i];
       const second = rows[i + 1];
       const next = rows[i + 2];
-      const text = second ? normalizeCueText(`${first.text} ${second.text}`) : first.text;
+      const combined = second ? normalizeCueText(`${first.text} ${second.text}`) : first.text;
+      const withCarry = normalizeCueText(`${carry} ${combined}`);
+      const isLastPair = !next;
+      const split = splitTrailingSentenceFragment(withCarry);
+      let text = withCarry;
+
+      if (!isLastPair && split.carry) {
+        text = split.display;
+        carry = split.carry;
+      } else {
+        carry = "";
+      }
+
       const naturalEnd = Math.max(first.endMs, second?.endMs || 0);
       const nextStart = next?.startMs;
       const endMs = Number.isFinite(nextStart) && nextStart > first.startMs
@@ -196,7 +223,7 @@
     return candidate && timeMs < candidate.endMs ? candidate : null;
   }
 
-  const api = { normalizeCueText, mergeRollingText, parseJson3Cues, cueAtTime, sentenceIsComplete };
+  const api = { normalizeCueText, mergeRollingText, parseJson3Cues, cueAtTime, sentenceIsComplete, splitTrailingSentenceFragment };
   globalThis.GLEYoutubeCues = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();
