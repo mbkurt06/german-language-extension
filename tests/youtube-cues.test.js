@@ -116,13 +116,13 @@ test("YouTube ASR rollup rows become stable two-line cues instead of one giant c
 test("completed sentence keeps the first word of the next sentence for the next cue", () => {
   const cues = parseJson3Cues({
     events: [
-      { tStartMs: 0, dDurationMs: 4000, wWinId: 1, segs: [{ utf8: "Hallo Welt. Wir" }] },
-      { tStartMs: 2000, dDurationMs: 2000, wWinId: 1, aAppend: 1, segs: [{ utf8: "\n" }] },
-      { tStartMs: 2100, dDurationMs: 4000, wWinId: 1, segs: [{ utf8: "lernen heute Deutsch." }] },
-      { tStartMs: 4000, dDurationMs: 2000, wWinId: 1, aAppend: 1, segs: [{ utf8: "\n" }] },
-      { tStartMs: 4100, dDurationMs: 3000, wWinId: 1, segs: [{ utf8: "Danach machen wir weiter." }] },
-      { tStartMs: 6000, dDurationMs: 1000, wWinId: 1, aAppend: 1, segs: [{ utf8: "\n" }] },
-      { tStartMs: 6100, dDurationMs: 2000, wWinId: 1, segs: [{ utf8: "Bis bald." }] },
+      { tStartMs: 0, dDurationMs: 2000, wWinId: 1, segs: [{ utf8: "Hallo Welt." }] },
+      { tStartMs: 1000, dDurationMs: 1000, wWinId: 1, aAppend: 1, segs: [{ utf8: "\n" }] },
+      { tStartMs: 1100, dDurationMs: 1800, wWinId: 1, segs: [{ utf8: "Wir" }] },
+      { tStartMs: 2000, dDurationMs: 900, wWinId: 1, aAppend: 1, segs: [{ utf8: "\n" }] },
+      { tStartMs: 2100, dDurationMs: 2000, wWinId: 1, segs: [{ utf8: "lernen heute" }] },
+      { tStartMs: 3000, dDurationMs: 1100, wWinId: 1, aAppend: 1, segs: [{ utf8: "\n" }] },
+      { tStartMs: 3100, dDurationMs: 1800, wWinId: 1, segs: [{ utf8: "Deutsch." }] },
     ],
   });
 
