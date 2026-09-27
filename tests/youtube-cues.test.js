@@ -140,20 +140,22 @@ test("translation context removes orphan next-sentence words without changing cu
 });
 
 
-test("hover context includes neighboring cues without changing timed cue text", () => {
+test("hover context spans two neighboring cues without changing timed cue text", () => {
   const cues = [
-    {index:0,startMs:0,endMs:1000,text:"möchte ich mich"},
-    {index:1,startMs:1000,endMs:2000,text:"noch bei unserem heutigen Sponsor bedanken."},
-    {index:2,startMs:2000,endMs:3000,text:"Italky. Wenn ihr auf der Suche"},
+    {index:0,startMs:0,endMs:1000,text:"Fantasie an."},
+    {index:1,startMs:1000,endMs:2000,text:"Und bevor es losgeht, möchte ich mich"},
+    {index:2,startMs:2000,endMs:3000,text:"noch bei unserem heutigen Sponsor bedanken."},
+    {index:3,startMs:3000,endMs:4000,text:"Italky. Wenn ihr auf der Suche"},
+    {index:4,startMs:4000,endMs:5000,text:"seid nach Tutoren"},
   ];
 
   assert.equal(
-    hoverTextForCue(cues,1),
-    "möchte ich mich noch bei unserem heutigen Sponsor bedanken. Italky. Wenn ihr auf der Suche"
+    hoverTextForCue(cues,2),
+    "Fantasie an. Und bevor es losgeht, möchte ich mich noch bei unserem heutigen Sponsor bedanken. Italky. Wenn ihr auf der Suche seid nach Tutoren"
   );
   assert.equal(
     hoverTextForCue(cues,0),
-    "möchte ich mich noch bei unserem heutigen Sponsor bedanken."
+    "Fantasie an. Und bevor es losgeht, möchte ich mich noch bei unserem heutigen Sponsor bedanken."
   );
-  assert.equal(cues[1].text,"noch bei unserem heutigen Sponsor bedanken.");
+  assert.equal(cues[2].text,"noch bei unserem heutigen Sponsor bedanken.");
 });
