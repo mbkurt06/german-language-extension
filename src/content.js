@@ -58,6 +58,10 @@
       REFLEXIVE_VERB_PREPOSITION:"Refleksif fiil + edat",
       NOMEN_VERB:"İsim + fiil kalıbı",
       FUNCTION_VERB:"Sabit fiil kalıbı",
+      ADJECTIVE_PREPOSITION:"Sıfat + edat",
+      NOUN_PREPOSITION:"İsim + edat",
+      PARTICLE_VERB:"Ayrılabilen fiil",
+      COPULAR_CONSTRUCTION:"Sabit yapı (sein/werden/bleiben)",
       COLLOCATION:"Birlikte kullanım",
       FIXED_CONSTRUCTION:"Sabit yapı"
     })[type] || "Birlikte kullanım";
