@@ -10,3 +10,10 @@
 .gle-youtube-drag-handle{pointer-events:auto;appearance:none;border:0;border-radius:999px;background:rgba(20,20,20,.78);color:#fff;font:600 16px/1 system-ui,-apple-system,sans-serif;width:30px;height:30px;padding:0;display:grid;place-items:center;cursor:ns-resize;opacity:0;box-shadow:0 1px 4px rgba(0,0,0,.35);touch-action:none;user-select:none;position:absolute;left:calc(100% + 8px);top:50%;transform:translateY(-50%);transition:opacity .15s ease}
 .gle-youtube-overlay:hover .gle-youtube-drag-handle,.gle-youtube-drag-handle:focus-visible,.gle-youtube-overlay.gle-dragging .gle-youtube-drag-handle{opacity:1}
 .gle-youtube-overlay.gle-dragging .gle-youtube-drag-handle{cursor:grabbing}
+
+.gle-context-primary{font-size:16px;margin:0 0 9px;padding:0 0 9px;border-bottom:1px solid #374151}
+.gle-learn-actions{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;padding-top:9px;border-top:1px solid #374151}
+.gle-learn-button{appearance:none;border:1px solid #4b5563;border-radius:7px;background:#1f2937;color:#f9fafb;padding:5px 8px;font:12px/1.2 system-ui,-apple-system,sans-serif;cursor:pointer}
+.gle-learn-button:hover{background:#374151}.gle-learn-button:disabled{opacity:.68;cursor:default}
+.gle-learning-item{position:relative;border-bottom-color:#fbbf24!important;background:rgba(251,191,36,.12);border-radius:.12em}
+.gle-learning-item[data-gle-learning-label]::after{content:attr(data-gle-learning-label);position:absolute;left:50%;bottom:calc(100% + 5px);transform:translateX(-50%);z-index:2147483200;max-width:min(360px,70vw);width:max-content;padding:4px 7px;border-radius:6px;background:rgba(17,24,39,.95);color:#fff;font:500 12px/1.25 system-ui,-apple-system,sans-serif;white-space:nowrap;pointer-events:none;box-shadow:0 2px 8px rgba(0,0,0,.32)}

@@ -9,6 +9,10 @@ input[type="url"]{width:100%;padding:9px;box-sizing:border-box}
 input[type="range"]{flex:1}
 button{margin-top:18px;padding:8px 14px}
 #sizeValue{min-width:44px}
+#learningList{margin:10px 0 0;padding:0;list-style:none}
+#learningList li{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:1px solid #ddd}
+#learningList button{margin:0;padding:4px 8px}
+.learning-meta{display:block;color:#666;font-size:12px;margin-top:2px}
 </style>
 <h1>German Language Context</h1>
 <label for="url">Language Engine HTTP adresi</label>
@@ -20,5 +24,8 @@ button{margin-top:18px;padding:8px 14px}
 <div class="row"><input id="translationSize" type="range" min="70" max="150" step="5" value="100"><output id="sizeValue">100%</output></div>
 <p><small>Altyazı kutusunu YouTube videosu üzerinde ↕ tutamacından sürükleyerek yukarı/aşağı taşıyabilirsiniz. Konum otomatik kaydedilir.</small></p>
 <p><small>Kelime hover analizi bu ayarlardan bağımsızdır ve her zaman çalışır.</small></p>
+<h2>Öğreniyorum</h2>
+<p><small>Hover penceresinden işaretlediğiniz kelime ve kalıplar, lemma ve yapısal eşleşme ile altyazıda otomatik gösterilir.</small></p>
+<ul id="learningList"></ul>
 <button id="save">Kaydet</button> <span id="status"></span>
 <script src="options.js"></script>
