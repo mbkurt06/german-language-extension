@@ -73,6 +73,25 @@
     })[type] || "Birlikte kullanım";
   }
 
+  function posLabel(pos){
+    return ({
+      NOUN:"İsim",
+      PROPN:"Özel isim",
+      VERB:"Fiil",
+      AUX:"Yardımcı fiil",
+      ADJ:"Sıfat",
+      ADV:"Zarf",
+      ADP:"Edat",
+      PRON:"Zamir",
+      DET:"Tanımlık / belirleyici",
+      SCONJ:"Bağlaç",
+      CCONJ:"Bağlaç",
+      PART:"Parçacık",
+      NUM:"Sayı",
+      INTJ:"Ünlem",
+    })[pos] || "Kelime";
+  }
+
   function learningKey(kind,key){
     return kind+":"+String(key||"").toLocaleLowerCase("de-DE");
   }
@@ -97,40 +116,57 @@
     const lexical=h.lexical_form;
     const notes=h.usage_notes||[];
     const dictionaryMeanings=h.dictionary_meanings_tr||[];
-    const more=dictionaryMeanings.join(", ");
     const sourceToken=(data.tokens||[]).find(token=>token.i===tokenIndex);
-    const contextual=h.contextual_word_meaning_tr
-      ? `<div class="gle-context gle-context-primary"><b>Bu cümlede:</b> ${esc(h.contextual_word_meaning_tr)}</div>`
-      : "";
-    const expression=expr ? `<div class="gle-expression"><small class="gle-expression-kind">${esc(expressionTypeLabel(expr.type))}</small><b>${escAttr(expr.canonical)}</b><div>→ ${esc(expr.contextual_meaning_tr||(expr.meaning_tr||[])[0]||"")}</div>${expr.grammar_hint?`<small>${esc(expr.grammar_hint)}</small>`:""}</div>` : "";
-    const standalone=expr && dictionaryMeanings.length
-      ? `<div class="gle-standalone"><b>Kelime tek başına:</b> ${esc(dictionaryMeanings.join(", "))}</div>`
-      : "";
-    const source=sourceToken?.text && !lexical?.article ? `<div class="gle-source"><b>Almanca:</b> ${esc(sourceToken.lemma||sourceToken.text)}</div>` : "";
-    const usage=notes.map(n=>`<div class="gle-note"><b>${esc(n.label)}</b> · ${esc(n.explanation_tr)}</div>`).join("");
-    const noun=lexical?.article ? `<div class="gle-lexical"><b>${esc(lexical.article)} ${esc(lexical.singular)}</b> · die ${esc(lexical.plural)}</div>` : "";
-    const dictionary=!expr && more ? `<details><summary>Kelime anlamları</summary><div>${esc(more)}</div></details>` : "";
+    const lemma=sourceToken?.lemma||sourceToken?.text||"";
 
-    const wordKey=sourceToken?.lemma||sourceToken?.text||"";
-    const wordMeaning=h.contextual_word_meaning_tr||dictionaryMeanings[0]||"";
-    const exprMeaning=expr?.contextual_meaning_tr||(expr?.meaning_tr||[])[0]||"";
+    const primaryLabel=expr ? expr.canonical : lemma;
+    const primaryType=expr ? expressionTypeLabel(expr.type) : posLabel(sourceToken?.pos);
+    const primaryMeaning=expr
+      ? (expr.contextual_meaning_tr||(expr.meaning_tr||[])[0]||h.contextual_word_meaning_tr||"")
+      : (h.contextual_word_meaning_tr||dictionaryMeanings[0]||"");
+
+    const header=primaryLabel
+      ? `<div class="gle-hover-head"><b>${esc(primaryLabel)}</b><span>${esc(primaryType)}</span></div>`
+      : "";
+    const contextual=primaryMeaning
+      ? `<div class="gle-context gle-context-primary"><b>Bu cümlede:</b> ${esc(primaryMeaning)}</div>`
+      : "";
+
+    const grammarNotes=notes.filter(note=>note.kind==="GRAMMAR_ROLE");
+    const otherNotes=notes.filter(note=>note.kind!=="GRAMMAR_ROLE");
+    const role=grammarNotes.map(note=>`<div class="gle-role"><b>Görevi:</b> ${esc(note.explanation_tr)}</div>`).join("");
+    const usage=otherNotes.map(note=>`<div class="gle-note"><b>${esc(note.label)}</b> · ${esc(note.explanation_tr)}</div>`).join("");
+
+    const grammarHint=expr?.grammar_hint
+      ? `<div class="gle-note"><b>Yapı:</b> ${esc(expr.grammar_hint)}</div>`
+      : "";
+    const noun=lexical?.article
+      ? `<div class="gle-lexical"><b>${esc(lexical.article)} ${esc(lexical.singular)}</b> · die ${esc(lexical.plural)}</div>`
+      : "";
+    const standalone=expr && dictionaryMeanings.length
+      ? `<div class="gle-standalone"><b>${esc(lemma)} tek başına:</b> ${esc(dictionaryMeanings.join(", "))}</div>`
+      : "";
+    const dictionary=!expr && dictionaryMeanings.length>1
+      ? `<details><summary>Diğer sözlük anlamları</summary><div>${esc(dictionaryMeanings.join(", "))}</div></details>`
+      : "";
+
     const learnTarget=expr ? {
       kind:"expression",
       key:expr.pattern_id||expr.canonical,
       label:expr.canonical,
-      meaning:exprMeaning,
+      meaning:primaryMeaning,
     } : {
       kind:"word",
-      key:wordKey,
-      label:wordKey,
-      meaning:wordMeaning,
+      key:lemma,
+      label:lemma,
+      meaning:primaryMeaning,
     };
     const learning=learnTarget.key && isLearning(learnTarget.kind,learnTarget.key);
     const learnAction=learnTarget.key
       ? `<div class="gle-learn-actions"><button type="button" class="gle-learn-button gle-learn-toggle" title="${learning?"Öğreniyorum listesinden kaldır":"Öğreniyorum listesine ekle"}" aria-label="${learning?"Öğreniyorum listesinden kaldır":"Öğreniyorum listesine ekle"}" data-kind="${escAttr(learnTarget.kind)}" data-key="${escAttr(learnTarget.key)}" data-label="${escAttr(learnTarget.label)}" data-meaning="${escAttr(learnTarget.meaning)}">${learning?"★":"☆"} <span>Öğren</span></button></div>`
       : "";
 
-    state.tooltip.innerHTML=contextual+expression+noun+standalone+source+usage+dictionary+learnAction || "<div>Henüz analiz yok.</div>";
+    state.tooltip.innerHTML=header+contextual+role+grammarHint+noun+standalone+usage+dictionary+learnAction || "<div>Henüz analiz yok.</div>";
     const learnButton=state.tooltip.querySelector(".gle-learn-toggle");
     if(learnButton){
       learnButton.addEventListener("click",()=>{
