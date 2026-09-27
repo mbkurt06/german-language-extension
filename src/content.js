@@ -50,23 +50,40 @@
     return d.innerHTML;
   }
 
+  function expressionTypeLabel(type){
+    return ({
+      IDIOM:"Kalıp / deyim",
+      REFLEXIVE_VERB:"Refleksif fiil",
+      VERB_PREPOSITION:"Fiil + edat",
+      REFLEXIVE_VERB_PREPOSITION:"Refleksif fiil + edat",
+      NOMEN_VERB:"İsim + fiil kalıbı",
+      FUNCTION_VERB:"Sabit fiil kalıbı",
+      COLLOCATION:"Birlikte kullanım",
+      FIXED_CONSTRUCTION:"Sabit yapı"
+    })[type] || "Birlikte kullanım";
+  }
+
   function renderCard(data, tokenIndex, anchor){
     const h=data.hover?.[String(tokenIndex)]||data.hover?.[tokenIndex]||{};
     const expressions=h.primary_expressions||[];
     const expr=expressions[0];
     const lexical=h.lexical_form;
     const notes=h.usage_notes||[];
-    const more=(h.dictionary_meanings_tr||[]).join(", ");
+    const dictionaryMeanings=h.dictionary_meanings_tr||[];
+    const more=dictionaryMeanings.join(", ");
     const cleanSentence=cleanTranslationText(data.sentence_meaning_tr);
     const sentence=cleanSentence ? `<div class="gle-sentence">🇹🇷 ${esc(cleanSentence)}</div>` : "";
     const sourceToken=(data.tokens||[]).find(token=>token.i===tokenIndex);
     const source=sourceToken?.text && !lexical?.article ? `<div class="gle-source"><b>Almanca:</b> ${esc(sourceToken.lemma||sourceToken.text)}</div>` : "";
-    const expression=expr ? `<div class="gle-expression"><b>${esc(expr.canonical)}</b><div>→ ${esc((expr.meaning_tr||[])[0]||"")}</div>${expr.grammar_hint?`<small>${esc(expr.grammar_hint)}</small>`:""}</div>` : "";
-    const contextual=h.contextual_word_meaning_tr ? `<div class="gle-context"><b>Bu cümlede:</b> ${esc(h.contextual_word_meaning_tr)}</div>` : "";
+    const expression=expr ? `<div class="gle-expression"><small class="gle-expression-kind">${esc(expressionTypeLabel(expr.type))}</small><b>${esc(expr.canonical)}</b><div>→ ${esc(expr.contextual_meaning_tr||(expr.meaning_tr||[])[0]||"")}</div>${expr.grammar_hint?`<small>${esc(expr.grammar_hint)}</small>`:""}</div>` : "";
+    const standalone=expr && dictionaryMeanings.length
+      ? `<div class="gle-standalone"><b>Kelime tek başına:</b> ${esc(dictionaryMeanings.join(", "))}</div>`
+      : "";
+    const contextual=!expr && h.contextual_word_meaning_tr ? `<div class="gle-context"><b>Bu cümlede:</b> ${esc(h.contextual_word_meaning_tr)}</div>` : "";
     const usage=notes.map(n=>`<div class="gle-note"><b>${esc(n.label)}</b> · ${esc(n.explanation_tr)}</div>`).join("");
     const noun=lexical?.article ? `<div class="gle-lexical"><b>${esc(lexical.article)} ${esc(lexical.singular)}</b> · die ${esc(lexical.plural)}</div>` : "";
-    const dictionary=more ? `<details><summary>Kelime anlamları</summary><div>${esc(more)}</div></details>` : "";
-    state.tooltip.innerHTML=sentence+source+expression+noun+contextual+usage+dictionary || "<div>Henüz analiz yok.</div>";
+    const dictionary=!expr && more ? `<details><summary>Kelime anlamları</summary><div>${esc(more)}</div></details>` : "";
+    state.tooltip.innerHTML=sentence+expression+noun+standalone+source+contextual+usage+dictionary || "<div>Henüz analiz yok.</div>";
 
     const r=anchor.getBoundingClientRect();
     state.tooltip.hidden=false;
