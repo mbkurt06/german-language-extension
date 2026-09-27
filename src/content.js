@@ -9,6 +9,7 @@
     cache:new Map(),
     analysisInflight:new Map(),
     tooltip:null,
+    tooltipHideTimer:null,
     settings:{showSentenceTranslation:true,germanFontSize:100,translationFontSize:100,youtubeSubtitlePositionY:82},
     learningItems:[],
     youtube:{
@@ -37,10 +38,25 @@
     return text.match(/[\p{L}\p{M}ßÄÖÜäöü]+(?:['’-][\p{L}\p{M}]+)?|[^\s]/gu)||[];
   }
 
+  function cancelTooltipHide(){
+    clearTimeout(state.tooltipHideTimer);
+    state.tooltipHideTimer=null;
+  }
+
+  function scheduleTooltipHide(delay=240){
+    if(state.tooltipHideTimer) return;
+    state.tooltipHideTimer=setTimeout(()=>{
+      state.tooltipHideTimer=null;
+      if(state.tooltip) state.tooltip.hidden=true;
+    },delay);
+  }
+
   function createTooltip(){
     const el=document.createElement("div");
     el.id="gle-tooltip";
     el.hidden=true;
+    el.addEventListener("mouseenter",cancelTooltipHide);
+    el.addEventListener("mouseleave",()=>scheduleTooltipHide(220));
     document.documentElement.appendChild(el);
     return el;
   }
@@ -110,6 +126,7 @@
   }
 
   function renderCard(data, tokenIndex, anchor){
+    cancelTooltipHide();
     const h=data.hover?.[String(tokenIndex)]||data.hover?.[tokenIndex]||{};
     const expressions=h.primary_expressions||[];
     const expr=expressions[0];
@@ -332,11 +349,15 @@
       }
       if(span.classList.contains("gle-word")){
         const mappedToken=mappedTokens[i]||token;
-        span.addEventListener("mouseenter",()=>renderCard(
-          hoverOffset>=0 ? hoverData : data,
-          mappedToken?.i ?? token.i,
-          span
-        ));
+        span.addEventListener("mouseenter",()=>{
+          cancelTooltipHide();
+          renderCard(
+            hoverOffset>=0 ? hoverData : data,
+            mappedToken?.i ?? token.i,
+            span
+          );
+        });
+        span.addEventListener("mouseleave",()=>scheduleTooltipHide(260));
       }
       node.appendChild(span);
       if(shouldInsertSpace(token,tokens[i+1])) node.append(" ");
@@ -741,9 +762,13 @@
   });
 
   document.addEventListener("mousemove",event=>{
-    if(state.tooltip && !state.tooltip.contains(event.target) && !event.target.closest?.(".gle-word")){
-      state.tooltip.hidden=true;
+    const overTooltip=state.tooltip?.contains(event.target);
+    const overWord=event.target.closest?.(".gle-word");
+    if(overTooltip || overWord){
+      cancelTooltipHide();
+      return;
     }
+    scheduleTooltipHide(260);
   });
 
   if(adapter.id==="youtube") connectYouTubeBridge();
