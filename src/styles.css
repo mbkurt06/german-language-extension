@@ -17,3 +17,5 @@
 .gle-learn-button:hover{background:#374151}.gle-learn-button:disabled{opacity:.68;cursor:default}
 .gle-learning-item{position:relative;border-bottom-color:#fbbf24!important;background:rgba(251,191,36,.12);border-radius:.12em}
 .gle-learning-item[data-gle-learning-label]::after{content:attr(data-gle-learning-label);position:absolute;left:50%;bottom:calc(100% + 5px);transform:translateX(-50%);z-index:2147483200;max-width:min(360px,70vw);width:max-content;padding:4px 7px;border-radius:6px;background:rgba(17,24,39,.95);color:#fff;font:500 12px/1.25 system-ui,-apple-system,sans-serif;white-space:nowrap;pointer-events:none;box-shadow:0 2px 8px rgba(0,0,0,.32)}
+
+.gle-hover-head{display:flex;align-items:baseline;gap:8px;margin-bottom:7px}.gle-hover-head b{font-size:17px}.gle-hover-head span{color:#93c5fd;font-size:12px;font-weight:600}.gle-role{margin-top:6px;color:#e5e7eb}
