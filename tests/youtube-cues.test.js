@@ -1,6 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { parseJson3Cues, cueAtTime, translationTextForCue } = require("../src/youtube-cues.js");
+const { parseJson3Cues, cueAtTime, translationTextForCue, hoverTextForCue } = require("../src/youtube-cues.js");
 
 test("JSON3 word events merge into timed phrase cues and keep cue end times", () => {
   const cues = parseJson3Cues({
@@ -137,4 +137,23 @@ test("translation context removes orphan next-sentence words without changing cu
 
   assert.equal(cues[2].startMs,11480);
   assert.equal(cues[2].endMs,17119);
+});
+
+
+test("hover context includes neighboring cues without changing timed cue text", () => {
+  const cues = [
+    {index:0,startMs:0,endMs:1000,text:"möchte ich mich"},
+    {index:1,startMs:1000,endMs:2000,text:"noch bei unserem heutigen Sponsor bedanken."},
+    {index:2,startMs:2000,endMs:3000,text:"Italky. Wenn ihr auf der Suche"},
+  ];
+
+  assert.equal(
+    hoverTextForCue(cues,1),
+    "möchte ich mich noch bei unserem heutigen Sponsor bedanken. Italky. Wenn ihr auf der Suche"
+  );
+  assert.equal(
+    hoverTextForCue(cues,0),
+    "möchte ich mich noch bei unserem heutigen Sponsor bedanken."
+  );
+  assert.equal(cues[1].text,"noch bei unserem heutigen Sponsor bedanken.");
 });
