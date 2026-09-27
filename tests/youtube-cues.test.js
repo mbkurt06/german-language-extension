@@ -98,13 +98,34 @@ test("YouTube ASR rollup rows become stable two-line cues instead of one giant c
   });
 
   assert.equal(cues.length, 5);
+  assert.equal(cues[0].text, "Liebe Freunde der Sonne, herzlich willkommen zu einem neuen Video.");
+  assert.equal(cues[1].text, "Wir wollen heute über das Wort erst sprechen. Was bedeutet dieses Wort?");
+  assert.equal(cues[2].text, "In welchen Kontexten benutzen wir das?");
   assert.deepEqual(cues[3], {
     startMs: 17119,
     endMs: 25240,
-    text: "diesem Video beantworten und wir benutzen dafür natürlich unsere Fantasie",
+    text: "Diese Fragen werde ich euch heute in diesem Video beantworten und wir benutzen dafür natürlich unsere Fantasie",
     index: 3,
   });
   assert.equal(cues[4].text, "Fantasie an. [räuspern] Und bevor es losgeht, möchte ich mich");
   assert.equal(cueAtTime(cues, 20000)?.index, 3);
   assert.equal(cueAtTime(cues, 26000)?.index, 4);
+});
+
+
+test("completed sentence keeps the first word of the next sentence for the next cue", () => {
+  const cues = parseJson3Cues({
+    events: [
+      { tStartMs: 0, dDurationMs: 4000, wWinId: 1, segs: [{ utf8: "Hallo Welt. Wir" }] },
+      { tStartMs: 2000, dDurationMs: 2000, wWinId: 1, aAppend: 1, segs: [{ utf8: "\n" }] },
+      { tStartMs: 2100, dDurationMs: 4000, wWinId: 1, segs: [{ utf8: "lernen heute Deutsch." }] },
+      { tStartMs: 4000, dDurationMs: 2000, wWinId: 1, aAppend: 1, segs: [{ utf8: "\n" }] },
+      { tStartMs: 4100, dDurationMs: 3000, wWinId: 1, segs: [{ utf8: "Danach machen wir weiter." }] },
+      { tStartMs: 6000, dDurationMs: 1000, wWinId: 1, aAppend: 1, segs: [{ utf8: "\n" }] },
+      { tStartMs: 6100, dDurationMs: 2000, wWinId: 1, segs: [{ utf8: "Bis bald." }] },
+    ],
+  });
+
+  assert.equal(cues[0].text, "Hallo Welt.");
+  assert.equal(cues[1].text, "Wir lernen heute Deutsch.");
 });
