@@ -10,6 +10,7 @@
     analysisInflight:new Map(),
     tooltip:null,
     settings:{showSentenceTranslation:true,germanFontSize:100,translationFontSize:100,youtubeSubtitlePositionY:82},
+    learningItems:[],
     youtube:{
       overlay:null,
       germanLine:null,
@@ -68,6 +69,23 @@
     })[type] || "Birlikte kullanım";
   }
 
+  function learningKey(kind,key){
+    return kind+":"+String(key||"").toLocaleLowerCase("de-DE");
+  }
+
+  function isLearning(kind,key){
+    const wanted=learningKey(kind,key);
+    return state.learningItems.some(item=>learningKey(item.kind,item.key)===wanted);
+  }
+
+  function saveLearningItem(item){
+    const normalized={...item,key:String(item.key||"").toLocaleLowerCase("de-DE")};
+    const id=learningKey(normalized.kind,normalized.key);
+    if(state.learningItems.some(existing=>learningKey(existing.kind,existing.key)===id)) return;
+    state.learningItems=[...state.learningItems,normalized];
+    chrome.storage.sync.set({learningItems:state.learningItems});
+  }
+
   function renderCard(data, tokenIndex, anchor){
     const h=data.hover?.[String(tokenIndex)]||data.hover?.[tokenIndex]||{};
     const expressions=h.primary_expressions||[];
@@ -76,19 +94,44 @@
     const notes=h.usage_notes||[];
     const dictionaryMeanings=h.dictionary_meanings_tr||[];
     const more=dictionaryMeanings.join(", ");
-    const cleanSentence=cleanTranslationText(data.sentence_meaning_tr);
-    const sentence=cleanSentence ? `<div class="gle-sentence">🇹🇷 ${esc(cleanSentence)}</div>` : "";
     const sourceToken=(data.tokens||[]).find(token=>token.i===tokenIndex);
-    const source=sourceToken?.text && !lexical?.article ? `<div class="gle-source"><b>Almanca:</b> ${esc(sourceToken.lemma||sourceToken.text)}</div>` : "";
+    const contextual=h.contextual_word_meaning_tr
+      ? `<div class="gle-context gle-context-primary"><b>Bu cümlede:</b> ${esc(h.contextual_word_meaning_tr)}</div>`
+      : "";
     const expression=expr ? `<div class="gle-expression"><small class="gle-expression-kind">${esc(expressionTypeLabel(expr.type))}</small><b>${esc(expr.canonical)}</b><div>→ ${esc(expr.contextual_meaning_tr||(expr.meaning_tr||[])[0]||"")}</div>${expr.grammar_hint?`<small>${esc(expr.grammar_hint)}</small>`:""}</div>` : "";
     const standalone=expr && dictionaryMeanings.length
       ? `<div class="gle-standalone"><b>Kelime tek başına:</b> ${esc(dictionaryMeanings.join(", "))}</div>`
       : "";
-    const contextual=!expr && h.contextual_word_meaning_tr ? `<div class="gle-context"><b>Bu cümlede:</b> ${esc(h.contextual_word_meaning_tr)}</div>` : "";
+    const source=sourceToken?.text && !lexical?.article ? `<div class="gle-source"><b>Almanca:</b> ${esc(sourceToken.lemma||sourceToken.text)}</div>` : "";
     const usage=notes.map(n=>`<div class="gle-note"><b>${esc(n.label)}</b> · ${esc(n.explanation_tr)}</div>`).join("");
     const noun=lexical?.article ? `<div class="gle-lexical"><b>${esc(lexical.article)} ${esc(lexical.singular)}</b> · die ${esc(lexical.plural)}</div>` : "";
     const dictionary=!expr && more ? `<details><summary>Kelime anlamları</summary><div>${esc(more)}</div></details>` : "";
-    state.tooltip.innerHTML=sentence+expression+noun+standalone+source+contextual+usage+dictionary || "<div>Henüz analiz yok.</div>";
+
+    const wordKey=sourceToken?.lemma||sourceToken?.text||"";
+    const wordMeaning=h.contextual_word_meaning_tr||dictionaryMeanings[0]||"";
+    const wordButton=wordKey
+      ? `<button type="button" class="gle-learn-button" data-kind="word" data-key="${esc(wordKey)}" data-label="${esc(wordKey)}" data-meaning="${esc(wordMeaning)}">${isLearning("word",wordKey)?"✓ Öğreniyorum":"＋ Kelimeyi öğreniyorum"}</button>`
+      : "";
+    const exprMeaning=expr?.contextual_meaning_tr||(expr?.meaning_tr||[])[0]||"";
+    const exprButton=expr
+      ? `<button type="button" class="gle-learn-button" data-kind="expression" data-key="${esc(expr.pattern_id||expr.canonical)}" data-label="${esc(expr.canonical)}" data-meaning="${esc(exprMeaning)}">${isLearning("expression",expr.pattern_id||expr.canonical)?"✓ Öğreniyorum":"＋ Kalıbı öğreniyorum"}</button>`
+      : "";
+    const learnActions=(wordButton||exprButton) ? `<div class="gle-learn-actions">${exprButton}${wordButton}</div>` : "";
+
+    state.tooltip.innerHTML=contextual+expression+noun+standalone+source+usage+dictionary+learnActions || "<div>Henüz analiz yok.</div>";
+    state.tooltip.querySelectorAll(".gle-learn-button").forEach(button=>{
+      if(button.textContent.startsWith("✓")) button.disabled=true;
+      button.addEventListener("click",()=>{
+        saveLearningItem({
+          kind:button.dataset.kind,
+          key:button.dataset.key,
+          label:button.dataset.label,
+          meaning_tr:button.dataset.meaning,
+        });
+        button.textContent="✓ Öğreniyorum";
+        button.disabled=true;
+      });
+    });
 
     const r=anchor.getBoundingClientRect();
     state.tooltip.hidden=false;
@@ -172,14 +215,53 @@
     const tokens=data.tokens||[];
     const hoverTokens=hoverData.tokens||[];
     const hoverOffset=hoverData===data ? 0 : findTokenSequenceOffset(hoverTokens,tokens);
+    const mappedTokens=tokens.map((token,i)=>hoverOffset>=0 ? hoverTokens[hoverOffset+i] : token);
+
+    const learningWordLabels=new Map();
+    for(const item of state.learningItems){
+      if(item.kind!=="word") continue;
+      tokens.forEach((token,i)=>{
+        if(String(token.lemma||"").toLocaleLowerCase("de-DE")===String(item.key||"").toLocaleLowerCase("de-DE")){
+          learningWordLabels.set(i,item);
+        }
+      });
+    }
+
+    const expressionMembers=new Map();
+    const expressionBadges=new Map();
+    const expressions=hoverData.expressions||[];
+    for(const item of state.learningItems){
+      if(item.kind!=="expression") continue;
+      const match=expressions.find(expr=>
+        String(expr.pattern_id||expr.canonical||"").toLocaleLowerCase("de-DE")===
+        String(item.key||"").toLocaleLowerCase("de-DE")
+      );
+      if(!match) continue;
+      const visible=[];
+      mappedTokens.forEach((mapped,i)=>{
+        if(mapped && match.token_indices?.includes(mapped.i)){
+          expressionMembers.set(i,item);
+          visible.push(i);
+        }
+      });
+      if(visible.length) expressionBadges.set(visible[0],item);
+    }
 
     tokens.forEach((token,i)=>{
       const span=document.createElement("span");
       span.textContent=token.text;
       span.className=token.pos==="PUNCT"?"gle-punct":"gle-word";
       span.dataset.gleIndex=token.i;
-      if(span.className==="gle-word"){
-        const mappedToken=hoverOffset>=0 ? hoverTokens[hoverOffset+i] : token;
+      const learningItem=expressionMembers.get(i)||learningWordLabels.get(i);
+      if(learningItem){
+        span.classList.add("gle-learning-item");
+      }
+      const badgeItem=expressionBadges.get(i)||learningWordLabels.get(i);
+      if(badgeItem){
+        span.dataset.gleLearningLabel=`${badgeItem.label} → ${badgeItem.meaning_tr||""}`;
+      }
+      if(span.classList.contains("gle-word")){
+        const mappedToken=mappedTokens[i]||token;
         span.addEventListener("mouseenter",()=>renderCard(
           hoverOffset>=0 ? hoverData : data,
           mappedToken?.i ?? token.i,
@@ -553,8 +635,11 @@
     showSentenceTranslation:true,
     germanFontSize:100,
     translationFontSize:100,
-    youtubeSubtitlePositionY:82
+    youtubeSubtitlePositionY:82,
+    learningItems:[]
   },settings=>{
+    state.learningItems=Array.isArray(settings.learningItems)?settings.learningItems:[];
+    delete settings.learningItems;
     state.settings=settings;
     scan();
   });
@@ -565,6 +650,13 @@
     if(changes.germanFontSize) state.settings.germanFontSize=changes.germanFontSize.newValue;
     if(changes.translationFontSize) state.settings.translationFontSize=changes.translationFontSize.newValue;
     if(changes.youtubeSubtitlePositionY) state.settings.youtubeSubtitlePositionY=changes.youtubeSubtitlePositionY.newValue;
+    if(changes.learningItems){
+      state.learningItems=Array.isArray(changes.learningItems.newValue)?changes.learningItems.newValue:[];
+      if(adapter.id==="youtube" && state.youtube.cues?.length){
+        state.youtube.cueIndex=-1;
+        renderTimedCue();
+      }
+    }
     applyYouTubeAppearance();
 
     document.querySelectorAll(".gle-subtitle-translation").forEach(el=>el.remove());
