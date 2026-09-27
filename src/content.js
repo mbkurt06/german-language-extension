@@ -145,17 +145,41 @@
     return true;
   }
 
-  function renderAnalyzedTokens(node,text,data){
+  function normalizedTokenText(token){
+    return String(token?.text||"").toLocaleLowerCase("de-DE");
+  }
+
+  function findTokenSequenceOffset(contextTokens,currentTokens){
+    if(!contextTokens?.length || !currentTokens?.length || currentTokens.length>contextTokens.length) return -1;
+    outer:
+    for(let start=0;start<=contextTokens.length-currentTokens.length;start++){
+      for(let i=0;i<currentTokens.length;i++){
+        if(normalizedTokenText(contextTokens[start+i])!==normalizedTokenText(currentTokens[i])) continue outer;
+      }
+      return start;
+    }
+    return -1;
+  }
+
+  function renderAnalyzedTokens(node,text,data,hoverData=data){
     if(node.dataset.gleText!==text) return;
     node.textContent="";
     const tokens=data.tokens||[];
+    const hoverTokens=hoverData.tokens||[];
+    const hoverOffset=hoverData===data ? 0 : findTokenSequenceOffset(hoverTokens,tokens);
+
     tokens.forEach((token,i)=>{
       const span=document.createElement("span");
       span.textContent=token.text;
       span.className=token.pos==="PUNCT"?"gle-punct":"gle-word";
       span.dataset.gleIndex=token.i;
       if(span.className==="gle-word"){
-        span.addEventListener("mouseenter",()=>renderCard(data,token.i,span));
+        const mappedToken=hoverOffset>=0 ? hoverTokens[hoverOffset+i] : token;
+        span.addEventListener("mouseenter",()=>renderCard(
+          hoverOffset>=0 ? hoverData : data,
+          mappedToken?.i ?? token.i,
+          span
+        ));
       }
       node.appendChild(span);
       if(shouldInsertSpace(token,tokens[i+1])) node.append(" ");
@@ -174,14 +198,17 @@
     });
   }
 
-  async function decorate(node,text,translationText=text){
+  async function decorate(node,text,translationText=text,hoverContextText=text){
     if(node.dataset.gleText===text) return;
     node.dataset.gleText=text;
     renderFallbackTokens(node,text);
     try{
-      const data=await analyze(text);
+      const [data,hoverData]=await Promise.all([
+        analyze(text),
+        hoverContextText===text ? Promise.resolve(null) : analyze(hoverContextText),
+      ]);
       if(node.dataset.gleText!==text) return;
-      renderAnalyzedTokens(node,text,data);
+      renderAnalyzedTokens(node,text,data,hoverData||data);
       await renderSentenceTranslation(node,text,translationText);
     }catch(_error){}
   }
@@ -273,14 +300,14 @@
     if(player) player.classList.toggle("gle-custom-captions-active",Boolean(active));
   }
 
-  function showYouTubeText(text,translationText=text){
+  function showYouTubeText(text,translationText=text,hoverContextText=text){
     const ui=ensureYouTubeOverlay();
     if(!ui || !text) return;
     clearTimeout(state.youtube.hideTimer);
     state.youtube.hideTimer=null;
     setYouTubeCustomActive(true);
     ui.overlay.hidden=false;
-    decorate(ui.germanLine,text,translationText);
+    decorate(ui.germanLine,text,translationText,hoverContextText);
   }
 
   function hideYouTubeOverlay(){
@@ -312,6 +339,8 @@
       if(text && !state.cache.has(text)) analyze(text).catch(()=>{});
       const translationText=globalThis.GLEYoutubeCues.translationTextForCue(cues,i);
       if(translationText && !state.cache.has(translationText)) analyze(translationText).catch(()=>{});
+      const hoverContextText=globalThis.GLEYoutubeCues.hoverTextForCue(cues,i);
+      if(hoverContextText && !state.cache.has(hoverContextText)) analyze(hoverContextText).catch(()=>{});
     }
   }
 
@@ -337,7 +366,8 @@
     if(state.youtube.cueIndex!==cue.index){
       state.youtube.cueIndex=cue.index;
       const translationText=globalThis.GLEYoutubeCues.translationTextForCue(cues,cue.index);
-      showYouTubeText(cue.text,translationText);
+      const hoverContextText=globalThis.GLEYoutubeCues.hoverTextForCue(cues,cue.index);
+      showYouTubeText(cue.text,translationText,hoverContextText);
     }else if(state.youtube.overlay){
       state.youtube.overlay.hidden=false;
     }
