@@ -106,11 +106,11 @@
       .trim();
   }
 
-  async function renderSentenceTranslation(node,text){
+  async function renderSentenceTranslation(node,text,translationText=text){
     node.querySelector(".gle-subtitle-translation")?.remove();
     if(!state.settings.showSentenceTranslation) return;
     try{
-      const data=await analyze(text);
+      const data=await analyze(translationText);
       if(!data.sentence_meaning_tr || node.dataset.gleText!==text) return;
       const translation=cleanTranslationText(data.sentence_meaning_tr);
       if(!translation) return;
@@ -157,7 +157,7 @@
     });
   }
 
-  async function decorate(node,text){
+  async function decorate(node,text,translationText=text){
     if(node.dataset.gleText===text) return;
     node.dataset.gleText=text;
     renderFallbackTokens(node,text);
@@ -165,7 +165,7 @@
       const data=await analyze(text);
       if(node.dataset.gleText!==text) return;
       renderAnalyzedTokens(node,text,data);
-      await renderSentenceTranslation(node,text);
+      await renderSentenceTranslation(node,text,translationText);
     }catch(_error){}
   }
 
@@ -256,14 +256,14 @@
     if(player) player.classList.toggle("gle-custom-captions-active",Boolean(active));
   }
 
-  function showYouTubeText(text){
+  function showYouTubeText(text,translationText=text){
     const ui=ensureYouTubeOverlay();
     if(!ui || !text) return;
     clearTimeout(state.youtube.hideTimer);
     state.youtube.hideTimer=null;
     setYouTubeCustomActive(true);
     ui.overlay.hidden=false;
-    decorate(ui.germanLine,text);
+    decorate(ui.germanLine,text,translationText);
   }
 
   function hideYouTubeOverlay(){
@@ -293,6 +293,8 @@
     for(let i=index;i<=Math.min(cues.length-1,index+horizon);i++){
       const text=cues[i]?.text;
       if(text && !state.cache.has(text)) analyze(text).catch(()=>{});
+      const translationText=globalThis.GLEYoutubeCues.translationTextForCue(cues,i);
+      if(translationText && !state.cache.has(translationText)) analyze(translationText).catch(()=>{});
     }
   }
 
@@ -317,7 +319,8 @@
 
     if(state.youtube.cueIndex!==cue.index){
       state.youtube.cueIndex=cue.index;
-      showYouTubeText(cue.text);
+      const translationText=globalThis.GLEYoutubeCues.translationTextForCue(cues,cue.index);
+      showYouTubeText(cue.text,translationText);
     }else if(state.youtube.overlay){
       state.youtube.overlay.hidden=false;
     }
@@ -514,7 +517,12 @@
 
     document.querySelectorAll(".gle-subtitle-translation").forEach(el=>el.remove());
     document.querySelectorAll("[data-gle-text]").forEach(node=>{
-      if(state.settings.showSentenceTranslation) renderSentenceTranslation(node,node.dataset.gleText);
+      if(!state.settings.showSentenceTranslation) return;
+      let translationText=node.dataset.gleText;
+      if(adapter.id==="youtube" && node===state.youtube.germanLine && state.youtube.cues && state.youtube.cueIndex>=0){
+        translationText=globalThis.GLEYoutubeCues.translationTextForCue(state.youtube.cues,state.youtube.cueIndex);
+      }
+      renderSentenceTranslation(node,node.dataset.gleText,translationText);
     });
   });
 
