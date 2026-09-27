@@ -226,7 +226,12 @@
       if(item.kind!=="word") continue;
       tokens.forEach((token,i)=>{
         if(String(token.lemma||"").toLocaleLowerCase("de-DE")===String(item.key||"").toLocaleLowerCase("de-DE")){
-          learningWordLabels.set(i,item);
+          const mapped=mappedTokens[i]||token;
+          const currentHover=hoverData.hover?.[String(mapped.i)]||hoverData.hover?.[mapped.i]||{};
+          learningWordLabels.set(i,{
+            ...item,
+            meaning_tr:currentHover.contextual_word_meaning_tr||item.meaning_tr,
+          });
         }
       });
     }
@@ -244,11 +249,15 @@
       const visible=[];
       mappedTokens.forEach((mapped,i)=>{
         if(mapped && match.token_indices?.includes(mapped.i)){
-          expressionMembers.set(i,item);
+          const currentItem={
+            ...item,
+            meaning_tr:match.contextual_meaning_tr||(match.meaning_tr||[])[0]||item.meaning_tr,
+          };
+          expressionMembers.set(i,currentItem);
           visible.push(i);
         }
       });
-      if(visible.length) expressionBadges.set(visible[0],item);
+      if(visible.length) expressionBadges.set(visible[0],expressionMembers.get(visible[0])||item);
     }
 
     tokens.forEach((token,i)=>{
