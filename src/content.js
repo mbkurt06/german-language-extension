@@ -62,6 +62,7 @@
       NOUN_PREPOSITION:"İsim + edat",
       PARTICLE_VERB:"Ayrılabilen fiil",
       COPULAR_CONSTRUCTION:"Sabit yapı (sein/werden/bleiben)",
+      GRAMMAR_CONSTRUCTION:"Dilbilgisi yapısı",
       COLLOCATION:"Birlikte kullanım",
       FIXED_CONSTRUCTION:"Sabit yapı"
     })[type] || "Birlikte kullanım";
