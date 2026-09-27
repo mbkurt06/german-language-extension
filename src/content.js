@@ -113,29 +113,50 @@
 
     const wordKey=sourceToken?.lemma||sourceToken?.text||"";
     const wordMeaning=h.contextual_word_meaning_tr||dictionaryMeanings[0]||"";
-    const wordButton=wordKey
-      ? `<button type="button" class="gle-learn-button" data-kind="word" data-key="${escAttr(wordKey)}" data-label="${escAttr(wordKey)}" data-meaning="${escAttr(wordMeaning)}">${isLearning("word",wordKey)?"✓ Öğreniyorum":"＋ Kelimeyi öğreniyorum"}</button>`
-      : "";
     const exprMeaning=expr?.contextual_meaning_tr||(expr?.meaning_tr||[])[0]||"";
-    const exprButton=expr
-      ? `<button type="button" class="gle-learn-button" data-kind="expression" data-key="${escAttr(expr.pattern_id||expr.canonical)}" data-label="${escAttr(expr.canonical)}" data-meaning="${escAttr(exprMeaning)}">${isLearning("expression",expr.pattern_id||expr.canonical)?"✓ Öğreniyorum":"＋ Kalıbı öğreniyorum"}</button>`
+    const learnTarget=expr ? {
+      kind:"expression",
+      key:expr.pattern_id||expr.canonical,
+      label:expr.canonical,
+      meaning:exprMeaning,
+    } : {
+      kind:"word",
+      key:wordKey,
+      label:wordKey,
+      meaning:wordMeaning,
+    };
+    const learning=learnTarget.key && isLearning(learnTarget.kind,learnTarget.key);
+    const learnAction=learnTarget.key
+      ? `<div class="gle-learn-actions"><button type="button" class="gle-learn-button gle-learn-toggle" title="${learning?"Öğreniyorum listesinden kaldır":"Öğreniyorum listesine ekle"}" aria-label="${learning?"Öğreniyorum listesinden kaldır":"Öğreniyorum listesine ekle"}" data-kind="${escAttr(learnTarget.kind)}" data-key="${escAttr(learnTarget.key)}" data-label="${escAttr(learnTarget.label)}" data-meaning="${escAttr(learnTarget.meaning)}">${learning?"★":"☆"} <span>Öğren</span></button></div>`
       : "";
-    const learnActions=(wordButton||exprButton) ? `<div class="gle-learn-actions">${exprButton}${wordButton}</div>` : "";
 
-    state.tooltip.innerHTML=contextual+expression+noun+standalone+source+usage+dictionary+learnActions || "<div>Henüz analiz yok.</div>";
-    state.tooltip.querySelectorAll(".gle-learn-button").forEach(button=>{
-      if(button.textContent.startsWith("✓")) button.disabled=true;
-      button.addEventListener("click",()=>{
-        saveLearningItem({
-          kind:button.dataset.kind,
-          key:button.dataset.key,
-          label:button.dataset.label,
-          meaning_tr:button.dataset.meaning,
-        });
-        button.textContent="✓ Öğreniyorum";
-        button.disabled=true;
+    state.tooltip.innerHTML=contextual+expression+noun+standalone+source+usage+dictionary+learnAction || "<div>Henüz analiz yok.</div>";
+    const learnButton=state.tooltip.querySelector(".gle-learn-toggle");
+    if(learnButton){
+      learnButton.addEventListener("click",()=>{
+        const kind=learnButton.dataset.kind;
+        const key=learnButton.dataset.key;
+        const id=learningKey(kind,key);
+        const existing=state.learningItems.some(item=>learningKey(item.kind,item.key)===id);
+        if(existing){
+          state.learningItems=state.learningItems.filter(item=>learningKey(item.kind,item.key)!==id);
+          chrome.storage.sync.set({learningItems:state.learningItems});
+          learnButton.innerHTML="☆ <span>Öğren</span>";
+          learnButton.title="Öğreniyorum listesine ekle";
+          learnButton.setAttribute("aria-label","Öğreniyorum listesine ekle");
+        }else{
+          saveLearningItem({
+            kind,
+            key,
+            label:learnButton.dataset.label,
+            meaning_tr:learnButton.dataset.meaning,
+          });
+          learnButton.innerHTML="★ <span>Öğren</span>";
+          learnButton.title="Öğreniyorum listesinden kaldır";
+          learnButton.setAttribute("aria-label","Öğreniyorum listesinden kaldır");
+        }
       });
-    });
+    }
 
     const r=anchor.getBoundingClientRect();
     state.tooltip.hidden=false;
