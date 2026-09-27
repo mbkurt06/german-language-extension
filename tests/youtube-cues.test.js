@@ -1,6 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { parseJson3Cues, cueAtTime } = require("../src/youtube-cues.js");
+const { parseJson3Cues, cueAtTime, translationTextForCue } = require("../src/youtube-cues.js");
 
 test("JSON3 word events merge into timed phrase cues and keep cue end times", () => {
   const cues = parseJson3Cues({
@@ -107,4 +107,34 @@ test("YouTube ASR rollup rows become stable two-line cues instead of one giant c
   assert.equal(cues[4].text, "Fantasie an. [räuspern] Und bevor es losgeht, möchte ich mich");
   assert.equal(cueAtTime(cues, 20000)?.index, 3);
   assert.equal(cueAtTime(cues, 26000)?.index, 4);
+});
+
+
+test("translation context removes orphan next-sentence words without changing cue timing", () => {
+  const cues = [
+    {index:0,startMs:480,endMs:6200,text:"Liebe Freunde der Sonne, herzlich willkommen zu einem neuen Video. Wir"},
+    {index:1,startMs:6200,endMs:11480,text:"wollen heute über das Wort erst sprechen. Was bedeutet dieses Wort? In"},
+    {index:2,startMs:11480,endMs:17119,text:"welchen Kontexten benutzen wir das? Diese Fragen werde ich euch heute in"},
+    {index:3,startMs:17119,endMs:25240,text:"diesem Video beantworten und wir benutzen dafür natürlich unsere Fantasie"},
+  ];
+
+  assert.equal(
+    translationTextForCue(cues,0),
+    "Liebe Freunde der Sonne, herzlich willkommen zu einem neuen Video."
+  );
+  assert.equal(
+    translationTextForCue(cues,1),
+    "Wir wollen heute über das Wort erst sprechen. Was bedeutet dieses Wort?"
+  );
+  assert.equal(
+    translationTextForCue(cues,2),
+    "In welchen Kontexten benutzen wir das? Diese Fragen werde ich euch heute in diesem Video beantworten und wir benutzen dafür natürlich unsere Fantasie"
+  );
+  assert.equal(
+    translationTextForCue(cues,3),
+    "Diese Fragen werde ich euch heute in diesem Video beantworten und wir benutzen dafür natürlich unsere Fantasie"
+  );
+
+  assert.equal(cues[2].startMs,11480);
+  assert.equal(cues[2].endMs,17119);
 });
