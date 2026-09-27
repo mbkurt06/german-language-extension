@@ -51,6 +51,10 @@
     return d.innerHTML;
   }
 
+  function escAttr(s){
+    return esc(s).replace(/"/g,"&quot;");
+  }
+
   function expressionTypeLabel(type){
     return ({
       IDIOM:"Kalıp / deyim",
@@ -98,7 +102,7 @@
     const contextual=h.contextual_word_meaning_tr
       ? `<div class="gle-context gle-context-primary"><b>Bu cümlede:</b> ${esc(h.contextual_word_meaning_tr)}</div>`
       : "";
-    const expression=expr ? `<div class="gle-expression"><small class="gle-expression-kind">${esc(expressionTypeLabel(expr.type))}</small><b>${esc(expr.canonical)}</b><div>→ ${esc(expr.contextual_meaning_tr||(expr.meaning_tr||[])[0]||"")}</div>${expr.grammar_hint?`<small>${esc(expr.grammar_hint)}</small>`:""}</div>` : "";
+    const expression=expr ? `<div class="gle-expression"><small class="gle-expression-kind">${esc(expressionTypeLabel(expr.type))}</small><b>${escAttr(expr.canonical)}</b><div>→ ${esc(expr.contextual_meaning_tr||(expr.meaning_tr||[])[0]||"")}</div>${expr.grammar_hint?`<small>${esc(expr.grammar_hint)}</small>`:""}</div>` : "";
     const standalone=expr && dictionaryMeanings.length
       ? `<div class="gle-standalone"><b>Kelime tek başına:</b> ${esc(dictionaryMeanings.join(", "))}</div>`
       : "";
@@ -110,11 +114,11 @@
     const wordKey=sourceToken?.lemma||sourceToken?.text||"";
     const wordMeaning=h.contextual_word_meaning_tr||dictionaryMeanings[0]||"";
     const wordButton=wordKey
-      ? `<button type="button" class="gle-learn-button" data-kind="word" data-key="${esc(wordKey)}" data-label="${esc(wordKey)}" data-meaning="${esc(wordMeaning)}">${isLearning("word",wordKey)?"✓ Öğreniyorum":"＋ Kelimeyi öğreniyorum"}</button>`
+      ? `<button type="button" class="gle-learn-button" data-kind="word" data-key="${escAttr(wordKey)}" data-label="${escAttr(wordKey)}" data-meaning="${escAttr(wordMeaning)}">${isLearning("word",wordKey)?"✓ Öğreniyorum":"＋ Kelimeyi öğreniyorum"}</button>`
       : "";
     const exprMeaning=expr?.contextual_meaning_tr||(expr?.meaning_tr||[])[0]||"";
     const exprButton=expr
-      ? `<button type="button" class="gle-learn-button" data-kind="expression" data-key="${esc(expr.pattern_id||expr.canonical)}" data-label="${esc(expr.canonical)}" data-meaning="${esc(exprMeaning)}">${isLearning("expression",expr.pattern_id||expr.canonical)?"✓ Öğreniyorum":"＋ Kalıbı öğreniyorum"}</button>`
+      ? `<button type="button" class="gle-learn-button" data-kind="expression" data-key="${escAttr(expr.pattern_id||expr.canonical)}" data-label="${escAttr(expr.canonical)}" data-meaning="${escAttr(exprMeaning)}">${isLearning("expression",expr.pattern_id||expr.canonical)?"✓ Öğreniyorum":"＋ Kalıbı öğreniyorum"}</button>`
       : "";
     const learnActions=(wordButton||exprButton) ? `<div class="gle-learn-actions">${exprButton}${wordButton}</div>` : "";
 
