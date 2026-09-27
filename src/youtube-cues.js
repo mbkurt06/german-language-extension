@@ -178,6 +178,48 @@
     return cues.map(({append, windowId, ...cue}, index) => ({...cue, index}));
   }
 
+
+  function lastSentenceBoundary(text) {
+    const normalized = normalizeCueText(text);
+    const matches = [...normalized.matchAll(/[.!?…]["'»”’)}\]]*(?=\s|$)/gu)];
+    if (!matches.length) return null;
+    const match = matches[matches.length - 1];
+    return match.index + match[0].length;
+  }
+
+  function translationTextForCue(cues, index) {
+    const cue = cues?.[index];
+    if (!cue?.text) return "";
+
+    const current = normalizeCueText(cue.text);
+    let source = current;
+
+    const previous = cues[index - 1];
+    if (previous && /^[a-zäöüß]/u.test(current)) {
+      const previousText = normalizeCueText(previous.text);
+      const boundary = lastSentenceBoundary(previousText);
+      const tail = boundary === null ? previousText : previousText.slice(boundary).trim();
+      if (tail) source = normalizeCueText(`${tail} ${source}`);
+    }
+
+    const boundary = lastSentenceBoundary(source);
+    if (boundary !== null && boundary < source.length) {
+      const tail = source.slice(boundary).trim();
+      const tailWords = words(tail);
+
+      if (tailWords.length <= 2) {
+        source = source.slice(0, boundary).trim();
+      } else if (!sentenceIsComplete(source)) {
+        const next = cues[index + 1];
+        if (next?.text) {
+          source = mergeRollingText(source, next.text);
+        }
+      }
+    }
+
+    return normalizeCueText(source);
+  }
+
   function cueAtTime(cues, timeMs) {
     let low = 0;
     let high = cues.length - 1;
@@ -196,7 +238,7 @@
     return candidate && timeMs < candidate.endMs ? candidate : null;
   }
 
-  const api = { normalizeCueText, mergeRollingText, parseJson3Cues, cueAtTime, sentenceIsComplete };
+  const api = { normalizeCueText, mergeRollingText, parseJson3Cues, cueAtTime, sentenceIsComplete, translationTextForCue };
   globalThis.GLEYoutubeCues = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();
